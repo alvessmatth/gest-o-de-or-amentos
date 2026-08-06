@@ -24,38 +24,80 @@ import {
 } from "@/components/ui/input-group"
 import { supabase } from "@/lib/supabase"
 
+type Modo = "login" | "cadastro"
+
 export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [modo, setModo] = React.useState<Modo>("login")
   const [email, setEmail] = React.useState("")
   const [senha, setSenha] = React.useState("")
   const [mostrarSenha, setMostrarSenha] = React.useState(false)
-  const [entrando, setEntrando] = React.useState(false)
+  const [processando, setProcessando] = React.useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  async function handleLogin() {
+    // Fase de testes: o acesso é liberado ao clicar em "Acessar",
+    // mesmo sem e-mail/senha cadastrados. Se credenciais forem
+    // informadas, tentamos uma autenticação real primeiro.
+    if (email.trim() && senha.trim()) {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: senha,
+        })
+        if (!error) {
+          toast.success("Acesso liberado")
+          onAuthenticated()
+          return
+        }
+      } catch {
+        // Ignorado em fase de testes — segue para o acesso liberado.
+      }
+    }
 
+    toast.success("Acesso liberado (modo de testes)")
+    onAuthenticated()
+  }
+
+  async function handleCadastro() {
     if (!email.trim() || !senha.trim()) {
-      toast.error("Informe e-mail e senha para continuar")
+      toast.error("Informe e-mail e senha para criar sua conta")
+      return
+    }
+    if (senha.length < 6) {
+      toast.error("A senha deve ter ao menos 6 caracteres")
       return
     }
 
-    setEntrando(true)
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password: senha,
       })
       if (error) {
-        toast.error("Não foi possível entrar. Verifique suas credenciais.")
+        toast.error("Não foi possível criar a conta. Tente novamente.")
         return
       }
-      toast.success("Acesso liberado")
+      toast.success("Conta criada com sucesso")
       onAuthenticated()
     } catch {
-      toast.error("Erro inesperado ao entrar")
-    } finally {
-      setEntrando(false)
+      toast.error("Erro inesperado ao criar a conta")
     }
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setProcessando(true)
+    try {
+      if (modo === "login") {
+        await handleLogin()
+      } else {
+        await handleCadastro()
+      }
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  const ehLogin = modo === "login"
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10">
@@ -69,7 +111,9 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
               Gestão de Orçamentos
             </h1>
             <p className="text-sm text-muted-foreground text-pretty">
-              Acesse sua conta para gerenciar propostas, clientes e repasses.
+              {ehLogin
+                ? "Acesse sua conta para gerenciar propostas, clientes e repasses."
+                : "Crie sua conta para começar a gerenciar seus orçamentos."}
             </p>
           </div>
         </div>
@@ -105,7 +149,7 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
                 <InputGroupInput
                   id="senha"
                   type={mostrarSenha ? "text" : "password"}
-                  autoComplete="current-password"
+                  autoComplete={ehLogin ? "current-password" : "new-password"}
                   placeholder="••••••••"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
@@ -123,9 +167,26 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
             </Field>
           </FieldGroup>
 
-          <Button type="submit" size="lg" disabled={entrando} className="w-full">
-            {entrando ? "Entrando…" : "Acessar"}
+          <Button type="submit" size="lg" disabled={processando} className="w-full">
+            {processando
+              ? ehLogin
+                ? "Entrando…"
+                : "Criando conta…"
+              : ehLogin
+                ? "Acessar"
+                : "Criar conta"}
           </Button>
+
+          <div className="text-center text-sm text-muted-foreground">
+            {ehLogin ? "Não tem uma conta? " : "Já tem uma conta? "}
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setModo(ehLogin ? "cadastro" : "login")}
+            >
+              {ehLogin ? "Cadastre-se" : "Entrar"}
+            </button>
+          </div>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
