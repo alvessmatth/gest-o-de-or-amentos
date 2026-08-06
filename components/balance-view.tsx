@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { PencilIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { PencilIcon, PlusIcon, SaveIcon, SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,16 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { Input } from "@/components/ui/input"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   Table,
   TableBody,
@@ -27,24 +37,57 @@ import {
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { BALANCO, formatBRL } from "@/lib/data"
+import { BALANCO, formatBRL, type MesBalanco } from "@/lib/data"
+
+function formularioInicial() {
+  return {
+    mes: "",
+    orcamentos: "",
+    faturamento: "",
+    repasses: "",
+    recebido: "",
+  }
+}
 
 export function BalanceView() {
+  const [balanco, setBalanco] = React.useState<MesBalanco[]>(BALANCO)
   const [busca, setBusca] = React.useState("")
+  const [drawerAberto, setDrawerAberto] = React.useState(false)
+  const [form, setForm] = React.useState(formularioInicial)
 
-  const mesAtual = BALANCO[0]
-  const lucroAtual = mesAtual.faturamento - mesAtual.repasses
+  const mesAtual = balanco[0]
+  const lucroAtual = mesAtual ? mesAtual.faturamento - mesAtual.repasses : 0
 
-  const indicadores = [
-    { titulo: "Faturamento do mês", valor: formatBRL(mesAtual.faturamento), nota: mesAtual.mes },
-    { titulo: "Repasses a parceiros", valor: formatBRL(mesAtual.repasses), nota: "a pagar / pago" },
-    { titulo: "Lucro líquido", valor: formatBRL(lucroAtual), nota: "após repasses", destaque: true },
-  ]
+  const indicadores = mesAtual
+    ? [
+        { titulo: "Faturamento do mês", valor: formatBRL(mesAtual.faturamento), nota: mesAtual.mes },
+        { titulo: "Repasses a parceiros", valor: formatBRL(mesAtual.repasses), nota: "a pagar / pago" },
+        { titulo: "Lucro líquido", valor: formatBRL(lucroAtual), nota: "após repasses", destaque: true },
+      ]
+    : []
 
-  const linhas = BALANCO.filter((mes) => {
+  const linhas = balanco.filter((mes) => {
     const termo = busca.trim().toLowerCase()
     return termo === "" || mes.mes.toLowerCase().includes(termo)
   })
+
+  function salvar() {
+    if (form.mes.trim() === "") {
+      toast.error("Informe o mês de referência")
+      return
+    }
+    const novo: MesBalanco = {
+      mes: form.mes.trim(),
+      orcamentos: Number(form.orcamentos) || 0,
+      faturamento: Number(form.faturamento) || 0,
+      repasses: Number(form.repasses) || 0,
+      recebido: Number(form.recebido) || 0,
+    }
+    setBalanco((atual) => [novo, ...atual])
+    toast.success(`Lançamento de ${novo.mes} adicionado`)
+    setForm(formularioInicial())
+    setDrawerAberto(false)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -82,7 +125,7 @@ export function BalanceView() {
             aria-label="Busca rápida no balanço mensal"
           />
         </InputGroup>
-        <Button onClick={() => toast.success("Novo lançamento")}>
+        <Button onClick={() => setDrawerAberto(true)}>
           <PlusIcon data-icon="inline-start" />
           Adicionar lançamento
         </Button>
@@ -153,6 +196,99 @@ export function BalanceView() {
           </Empty>
         )}
       </div>
+
+      <Sheet open={drawerAberto} onOpenChange={setDrawerAberto}>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 p-0 sm:max-w-md data-[side=right]:sm:max-w-md"
+        >
+          <SheetHeader className="border-b bg-card px-5 py-4">
+            <SheetTitle className="text-base">Novo lançamento mensal</SheetTitle>
+            <SheetDescription>
+              Registre o resultado de um período no balanço.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="balanco-mes">Mês de referência</FieldLabel>
+                <Input
+                  id="balanco-mes"
+                  placeholder="Agosto 2026"
+                  value={form.mes}
+                  onChange={(e) => setForm((f) => ({ ...f, mes: e.target.value }))}
+                />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="balanco-orc">Propostas</FieldLabel>
+                  <Input
+                    id="balanco-orc"
+                    type="number"
+                    min={0}
+                    step="1"
+                    placeholder="0"
+                    value={form.orcamentos}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, orcamentos: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="balanco-fat">Faturamento (R$)</FieldLabel>
+                  <Input
+                    id="balanco-fat"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0,00"
+                    value={form.faturamento}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, faturamento: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="balanco-rep">Repasses (R$)</FieldLabel>
+                  <Input
+                    id="balanco-rep"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0,00"
+                    value={form.repasses}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, repasses: e.target.value }))
+                    }
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="balanco-receb">Recebido (R$)</FieldLabel>
+                  <Input
+                    id="balanco-receb"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0,00"
+                    value={form.recebido}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, recebido: e.target.value }))
+                    }
+                  />
+                </Field>
+              </div>
+            </FieldGroup>
+          </div>
+
+          <SheetFooter className="border-t bg-card px-5 py-4">
+            <Button onClick={salvar}>
+              <SaveIcon data-icon="inline-start" />
+              Salvar lançamento
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
