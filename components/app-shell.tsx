@@ -1,7 +1,11 @@
-import { BookMarkedIcon } from "lucide-react"
+"use client"
 
+import { BookMarkedIcon, LogOutIcon } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { supabase } from "@/lib/supabase"
 import { BudgetsView } from "@/components/budgets-view"
 import { ClientsView } from "@/components/clients-view"
 import { ServicesView } from "@/components/services-view"
@@ -34,6 +38,15 @@ export function AppShell() {
                   Edição científica &amp; tradução acadêmica
                 </span>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => void supabase.auth.signOut()}
+              >
+                <LogOutIcon data-icon="inline-start" />
+                Sair
+              </Button>
             </div>
 
             <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">

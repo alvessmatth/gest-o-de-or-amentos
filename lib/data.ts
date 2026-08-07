@@ -259,7 +259,7 @@ export type MesBalanco = {
 
 export const BALANCO: MesBalanco[] = [
   { mes: "Julho 2026", faturamento: 32676.7, repasses: 11240, orcamentos: 6, recebido: 21150 },
-  { mes: "Junho 2026", faturamento: 28450.900000000001, repasses: 9880, orcamentos: 7, recebido: 28450.900000000001 },
+  { mes: "Junho 2026", faturamento: 28450.9, repasses: 9880, orcamentos: 7, recebido: 28450.9 },
   { mes: "Maio 2026", faturamento: 19870.5, repasses: 6240, orcamentos: 5, recebido: 19870.5 },
   { mes: "Abril 2026", faturamento: 24310, repasses: 8150, orcamentos: 6, recebido: 24310 },
 ]
