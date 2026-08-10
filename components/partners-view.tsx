@@ -2,10 +2,26 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { PencilIcon, PlusIcon, SaveIcon, SearchIcon } from "lucide-react"
+import {
+  PencilIcon,
+  PlusIcon,
+  SaveIcon,
+  SearchIcon,
+  Trash2Icon,
+  HandshakeIcon,
+  PhoneIcon,
+  KeyIcon,
+} from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
 import {
   InputGroup,
   InputGroupAddon,
@@ -21,31 +37,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   listarTerceirizadosDB,
   salvarTerceirizadoDB,
+  excluirTerceirizadoDB,
   type TerceirizadoDB,
 } from "@/lib/cadastros-api"
-
-function iniciais(nome: string) {
-  return nome
-    .split(" ")
-    .filter((parte) => parte.length > 2)
-    .slice(0, 2)
-    .map((parte) => parte[0])
-    .join("")
-    .toUpperCase()
-}
 
 export function PartnersView() {
   const [parceiros, setParceiros] = React.useState<TerceirizadoDB[]>([])
@@ -57,7 +55,7 @@ export function PartnersView() {
   const [form, setForm] = React.useState({
     nome: "",
     especialidade: "",
-    chavePix: "",
+    chave_pix: "",
     telefone: "",
   })
 
@@ -65,8 +63,9 @@ export function PartnersView() {
     try {
       const dados = await listarTerceirizadosDB()
       setParceiros(dados)
-    } catch {
-      toast.error("Erro ao carregar parceiros")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao carregar parceiros do banco"
+      toast.error(msg)
     }
   }, [])
 
@@ -76,16 +75,21 @@ export function PartnersView() {
 
   function handleAbrirCriar() {
     setParceiroEditando(null)
-    setForm({ nome: "", especialidade: "", chavePix: "", telefone: "" })
+    setForm({
+      nome: "",
+      especialidade: "",
+      chave_pix: "",
+      telefone: "",
+    })
     setDrawerAberto(true)
   }
 
   function handleAbrirEditar(p: TerceirizadoDB) {
     setParceiroEditando(p)
     setForm({
-      nome: p.nome,
+      nome: p.nome || "",
       especialidade: p.especialidade || "",
-      chavePix: p.chave_pix || "",
+      chave_pix: p.chave_pix || "",
       telefone: p.telefone || "",
     })
     setDrawerAberto(true)
@@ -93,7 +97,7 @@ export function PartnersView() {
 
   async function handleSalvar() {
     if (!form.nome.trim()) {
-      toast.error("Informe o nome do parceiro")
+      toast.error("Preencha o nome do parceiro")
       return
     }
 
@@ -102,17 +106,34 @@ export function PartnersView() {
       await salvarTerceirizadoDB({
         id: parceiroEditando?.id,
         nome: form.nome.trim(),
-        especialidade: form.especialidade.trim(),
-        chave_pix: form.chavePix.trim(),
-        telefone: form.telefone.trim(),
+        especialidade: form.especialidade.trim() || undefined,
+        chave_pix: form.chave_pix.trim() || undefined,
+        telefone: form.telefone.trim() || undefined,
       })
-      toast.success(parceiroEditando ? "Parceiro atualizado!" : "Parceiro adicionado!")
+      toast.success(
+        parceiroEditando
+          ? "Parceiro atualizado com sucesso!"
+          : "Parceiro cadastrado com sucesso!"
+      )
       setDrawerAberto(false)
       await carregar()
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao salvar parceiro")
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar parceiro"
+      toast.error(msg)
     } finally {
       setSalvando(false)
+    }
+  }
+
+  async function handleExcluir(id: string, nome: string) {
+    if (!confirm(`Tem certeza que deseja remover o parceiro "${nome}"?`)) return
+    try {
+      await excluirTerceirizadoDB(id)
+      toast.success("Parceiro removido com sucesso!")
+      await carregar()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao excluir parceiro"
+      toast.error(msg)
     }
   }
 
@@ -121,19 +142,22 @@ export function PartnersView() {
     return (
       termo === "" ||
       p.nome.toLowerCase().includes(termo) ||
-      (p.especialidade && p.especialidade.toLowerCase().includes(termo))
+      (p.especialidade && p.especialidade.toLowerCase().includes(termo)) ||
+      (p.chave_pix && p.chave_pix.toLowerCase().includes(termo)) ||
+      (p.telefone && p.telefone.toLowerCase().includes(termo))
     )
   })
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Barra de Filtro e Botão */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <InputGroup className="bg-card sm:max-w-xs">
           <InputGroupAddon>
             <SearchIcon />
           </InputGroupAddon>
           <InputGroupInput
-            placeholder="Buscar parceiro ou especialidade"
+            placeholder="Buscar por nome, especialidade ou PIX"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />
@@ -144,77 +168,90 @@ export function PartnersView() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
-        <Table className="min-w-2xl">
-          <TableHeader>
-            <TableRow className="bg-secondary/60 hover:bg-secondary/60">
-              <TableHead className="min-w-56">Parceiro</TableHead>
-              <TableHead className="min-w-56">Especialidade</TableHead>
-              <TableHead className="w-44">Chave PIX</TableHead>
-              <TableHead className="w-24 text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {linhas.map((p) => (
-              <TableRow key={p.id} className="h-16">
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="size-8">
-                      <AvatarFallback className="text-xs">
-                        {iniciais(p.nome)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium">{p.nome}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {p.especialidade || "—"}
-                </TableCell>
-                <TableCell className="text-muted-foreground font-mono text-xs">
-                  {p.chave_pix || "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Editar ${p.nome}`}
-                          onClick={() => handleAbrirEditar(p)}
-                        />
-                      }
-                    >
-                      <PencilIcon />
-                    </TooltipTrigger>
-                    <TooltipContent>Editar</TooltipContent>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-
-        {linhas.length === 0 && (
-          <Empty className="border-t">
+      {/* Lista de Cards */}
+      {linhas.length === 0 ? (
+        <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
+          <Empty>
             <EmptyHeader>
-              <EmptyTitle>Nenhum parceiro encontrado</EmptyTitle>
+              <EmptyTitle>Nenhum parceiro terceirizado encontrado</EmptyTitle>
               <EmptyDescription>
-                Ajuste a busca ou adicione um novo profissional terceirizado.
+                Ajuste os filtros de busca ou cadastre um novo colaborador.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {linhas.map((p) => (
+            <Card key={p.id} className="flex flex-col justify-between shadow-xs">
+              <CardHeader className="flex flex-row items-start gap-3 pb-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary font-semibold">
+                  <HandshakeIcon className="size-5" />
+                </div>
+                <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+                  <CardTitle className="truncate text-sm font-semibold">
+                    {p.nome}
+                  </CardTitle>
+                  {p.especialidade && (
+                    <CardDescription className="truncate text-xs">
+                      {p.especialidade}
+                    </CardDescription>
+                  )}
+                </div>
+              </CardHeader>
 
+              <CardContent className="flex flex-col gap-1.5 text-xs text-muted-foreground pt-0">
+                {p.telefone && (
+                  <div className="flex items-center gap-2 truncate">
+                    <PhoneIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{p.telefone}</span>
+                  </div>
+                )}
+                {p.chave_pix && (
+                  <div className="flex items-center gap-2 truncate">
+                    <KeyIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">PIX: {p.chave_pix}</span>
+                  </div>
+                )}
+                {!p.telefone && !p.chave_pix && (
+                  <span className="italic text-muted-foreground/60">
+                    Sem dados de contato/PIX
+                  </span>
+                )}
+              </CardContent>
+
+              <CardFooter className="flex items-center justify-between border-t pt-3">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => p.id && handleExcluir(p.id, p.nome)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAbrirEditar(p)}
+                >
+                  <PencilIcon data-icon="inline-start" />
+                  Editar
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Drawer Lateral de Cadastro/Edição */}
       <Sheet open={drawerAberto} onOpenChange={setDrawerAberto}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md">
           <SheetHeader className="border-b bg-card px-5 py-4">
             <SheetTitle className="text-base">
-              {parceiroEditando ? "Editar parceiro" : "Novo parceiro"}
+              {parceiroEditando ? "Editar parceiro" : "Novo parceiro terceirizado"}
             </SheetTitle>
             <SheetDescription>
-              Cadastre ou edite um profissional terceirizado.
+              Cadastre tradutores, revisores ou diagramadores colaboradores.
             </SheetDescription>
           </SheetHeader>
 
@@ -224,34 +261,46 @@ export function PartnersView() {
                 <FieldLabel htmlFor="parceiro-nome">Nome completo</FieldLabel>
                 <Input
                   id="parceiro-nome"
-                  placeholder="Marina Toledo"
+                  placeholder="Ex: Dra. Ana Luíza ou Marcos Diagramador"
                   value={form.nome}
                   onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                 />
               </Field>
+
               <Field>
-                <FieldLabel htmlFor="parceiro-esp">Especialidade</FieldLabel>
+                <FieldLabel htmlFor="parceiro-esp">Especialidade / Função</FieldLabel>
                 <Input
                   id="parceiro-esp"
-                  placeholder="Tradução EN acadêmica"
+                  placeholder="Ex: Tradução Inglês Médico / Diagramação"
                   value={form.especialidade}
                   onChange={(e) => setForm((f) => ({ ...f, especialidade: e.target.value }))}
                 />
               </Field>
+
               <Field>
-                <FieldLabel htmlFor="parceiro-pix">Chave PIX</FieldLabel>
+                <FieldLabel htmlFor="parceiro-pix">Chave PIX (para repasses)</FieldLabel>
                 <Input
                   id="parceiro-pix"
-                  placeholder="marina@pix.com"
-                  value={form.chavePix}
-                  onChange={(e) => setForm((f) => ({ ...f, chavePix: e.target.value }))}
+                  placeholder="E-mail, CPF, telefone ou chave aleatória"
+                  value={form.chave_pix}
+                  onChange={(e) => setForm((f) => ({ ...f, chave_pix: e.target.value }))}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="parceiro-tel">Telefone / WhatsApp</FieldLabel>
+                <Input
+                  id="parceiro-tel"
+                  placeholder="(11) 98888-7777"
+                  value={form.telefone}
+                  onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
                 />
               </Field>
             </FieldGroup>
           </div>
 
           <SheetFooter className="border-t bg-card px-5 py-4">
-            <Button onClick={handleSalvar} disabled={salvando}>
+            <Button onClick={handleSalvar} disabled={salvando} className="w-full sm:w-auto">
               <SaveIcon data-icon="inline-start" />
               {salvando ? "Salvando..." : "Salvar parceiro"}
             </Button>
