@@ -1,18 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { gerarPDFOrcamento } from '@/lib/pdf'
+import { gerarPDFOrcamento } from "@/lib/pdf"
 import { toast } from "sonner"
 import {
+  CheckCircle2Icon,
   FileTextIcon,
-  MessageCircleIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   SlidersHorizontalIcon,
+  Building2Icon,
+  UserIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   InputGroup,
   InputGroupAddon,
@@ -36,59 +39,68 @@ import {
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ClienteIcon, ServicoPill, StatusBadge } from "@/components/atoms"
+import { ServicoPill } from "@/components/atoms"
 import { BudgetDrawer } from "@/components/budget-drawer"
 import {
-  ORCAMENTOS,
   STATUS_LABEL,
   formatBRL,
   formatData,
-  getCliente,
   type Orcamento,
   type StatusOrcamento,
 } from "@/lib/data"
-import { listarOrcamentos, type OrcamentoListado } from "@/lib/orcamentos-api"
+import {
+  atualizarStatusOrcamento,
+  listarOrcamentos,
+} from "@/lib/orcamentos-api"
 
-const ACOES = [
-  { label: "Gerar PDF", icon: FileTextIcon, mensagem: "PDF gerado" },
-  { label: "WhatsApp", icon: MessageCircleIcon, mensagem: "Enviado por WhatsApp" },
-  { label: "Editar", icon: PencilIcon, mensagem: "Abrindo edição" },
-]
+type OrcamentoExibicao = Orcamento & {
+  clienteNome: string
+  clienteSigla: string
+  ehUniversidade: boolean
+  rawItens?: any[]
+}
 
-function paraOrcamento(row: OrcamentoListado): Orcamento {
-  return {
-    id: row.id,
-    codigo: row.codigo,
-    clienteId: row.clienteId,
-    data: row.data,
-    validade: row.validade,
-    servicos: row.servicos,
-    valorTotal: row.valorTotal,
-    repasses: row.repasses,
-    status: row.status,
-    licitacao: row.licitacao,
-  }
+const BADGE_STATUS_STYLE: Record<StatusOrcamento, string> = {
+  rascunho: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100 border-zinc-200",
+  enviado: "bg-blue-50 text-blue-700 hover:bg-blue-50 border-blue-200",
+  execucao: "bg-amber-50 text-amber-700 hover:bg-amber-50 border-amber-200",
+  concluido: "bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200",
+  pago: "bg-purple-50 text-purple-700 hover:bg-purple-50 border-purple-200",
 }
 
 export function BudgetsView() {
   const [busca, setBusca] = React.useState("")
-  const [status, setStatus] = React.useState<string>("todos")
+  const [statusFilter, setStatusFilter] = React.useState<string>("todos")
   const [drawerAberto, setDrawerAberto] = React.useState(false)
-  const [orcamentos, setOrcamentos] = React.useState<Orcamento[]>(ORCAMENTOS)
+  const [orcamentoParaEditar, setOrcamentoParaEditar] = React.useState<OrcamentoExibicao | null>(null)
+  const [orcamentos, setOrcamentos] = React.useState<OrcamentoExibicao[]>([])
   const [carregando, setCarregando] = React.useState(true)
 
   const carregarOrcamentos = React.useCallback(async () => {
     setCarregando(true)
     try {
       const dados = await listarOrcamentos()
-      if (dados.length > 0) {
-        setOrcamentos(dados.map(paraOrcamento))
-      } else {
-        setOrcamentos(ORCAMENTOS)
-      }
-    } catch {
-      toast.error("Não foi possível carregar orçamentos do Supabase")
-      setOrcamentos(ORCAMENTOS)
+      setOrcamentos(
+        dados.map((d) => ({
+          id: d.id,
+          codigo: d.codigo,
+          clienteId: d.clienteId,
+          clienteNome: d.clienteNome,
+          clienteSigla: d.clienteSigla,
+          ehUniversidade: d.ehUniversidade,
+          data: d.data,
+          validade: d.validade,
+          servicos: d.servicos,
+          valorTotal: d.valorTotal,
+          repasses: d.repasses,
+          status: d.status,
+          licitacao: d.licitacao,
+          rawItens: d.rawItens,
+        }))
+      )
+    } catch (err) {
+      console.error(err)
+      toast.error("Erro ao carregar orçamentos do banco de dados")
     } finally {
       setCarregando(false)
     }
@@ -98,16 +110,41 @@ export function BudgetsView() {
     void carregarOrcamentos()
   }, [carregarOrcamentos])
 
+  async function handleMudarStatus(id: string, novoStatus: StatusOrcamento) {
+    setOrcamentos((atual) =>
+      atual.map((o) => (o.id === id ? { ...o, status: novoStatus } : o))
+    )
+    try {
+      await atualizarStatusOrcamento(id, novoStatus)
+      toast.success(`Status alterado para: ${STATUS_LABEL[novoStatus]}`)
+    } catch {
+      toast.error("Erro ao atualizar status no banco")
+    }
+  }
+
+  function handleConcluir(orcamento: OrcamentoExibicao) {
+    void handleMudarStatus(orcamento.id, "concluido")
+  }
+
+  function handleAbrirEdicao(orcamento: OrcamentoExibicao) {
+    setOrcamentoParaEditar(orcamento)
+    setDrawerAberto(true)
+  }
+
+  function handleCriarNovo() {
+    setOrcamentoParaEditar(null)
+    setDrawerAberto(true)
+  }
+
   const linhas = orcamentos.filter((orcamento) => {
-    const cliente = getCliente(orcamento.clienteId)
     const termo = busca.trim().toLowerCase()
     const combinaBusca =
       termo === "" ||
       orcamento.codigo.toLowerCase().includes(termo) ||
-      cliente?.nome.toLowerCase().includes(termo) ||
-      cliente?.sigla.toLowerCase().includes(termo) ||
+      orcamento.clienteNome.toLowerCase().includes(termo) ||
+      orcamento.clienteSigla.toLowerCase().includes(termo) ||
       orcamento.servicos.some((s) => s.toLowerCase().includes(termo))
-    const combinaStatus = status === "todos" || orcamento.status === status
+    const combinaStatus = statusFilter === "todos" || orcamento.status === statusFilter
     return combinaBusca && combinaStatus
   })
 
@@ -126,7 +163,8 @@ export function BudgetsView() {
               aria-label="Busca rápida de orçamentos"
             />
           </InputGroup>
-          <Select value={status} onValueChange={(v) => setStatus(v as string)}>
+
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as string)}>
             <SelectTrigger className="bg-card sm:w-48" aria-label="Filtrar por status">
               <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
               <SelectValue>
@@ -149,7 +187,8 @@ export function BudgetsView() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setDrawerAberto(true)}>
+
+        <Button onClick={handleCriarNovo}>
           <PlusIcon data-icon="inline-start" />
           Criar novo orçamento
         </Button>
@@ -164,93 +203,164 @@ export function BudgetsView() {
               <TableHead className="w-40">Data &amp; validade</TableHead>
               <TableHead className="min-w-64">Serviços contratados</TableHead>
               <TableHead className="w-36 text-right">Valor total</TableHead>
-              <TableHead className="w-36">Status</TableHead>
-              <TableHead className="w-32 text-right">Ações</TableHead>
+              <TableHead className="w-44">Status</TableHead>
+              <TableHead className="w-36 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linhas.map((orcamento) => {
-              const cliente = getCliente(orcamento.clienteId)
-              return (
-                <TableRow key={orcamento.id} className="h-16">
-                  <TableCell className="font-mono text-xs font-medium">
-                    {orcamento.codigo}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {cliente && <ClienteIcon tipo={cliente.tipo} />}
-                      <div className="flex flex-col">
-                        <span className="font-medium">{cliente?.sigla}</span>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {cliente?.nome}
-                        </span>
-                      </div>
+            {linhas.map((orcamento) => (
+              <TableRow key={orcamento.id} className="h-16">
+                <TableCell className="font-mono text-xs font-semibold">
+                  {orcamento.codigo}
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                      {orcamento.ehUniversidade ? (
+                        <Building2Icon className="size-4" />
+                      ) : (
+                        <UserIcon className="size-4" />
+                      )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col text-xs">
-                      <span>{formatData(orcamento.data)}</span>
-                      <span className="text-muted-foreground">
-                        válido até {formatData(orcamento.validade)}
+                    <div className="flex flex-col">
+                      <span className="font-medium text-sm leading-tight">
+                        {orcamento.clienteSigla}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground max-w-[200px]">
+                        {orcamento.clienteNome}
                       </span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {orcamento.servicos.map((servico) => (
-                        <ServicoPill key={servico} nome={servico} />
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-semibold tabular-nums">
-                      {formatBRL(orcamento.valorTotal)}
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex flex-col text-xs">
+                    <span>{formatData(orcamento.data)}</span>
+                    <span className="text-muted-foreground">
+                      válido até {formatData(orcamento.validade)}
                     </span>
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={orcamento.status} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-0.5">
-                      {ACOES.map((acao) => (
-                        <Tooltip key={acao.label}>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={`${acao.label} — ${orcamento.codigo}`}
-                                onClick={() => {
-                                  if (acao.label === "Gerar PDF") {
-                                    const clienteObj = getCliente(orcamento.clienteId)
-                                    gerarPDFOrcamento({
-                                      codigo_proposta: orcamento.codigo,
-                                      cliente_nome: clienteObj ? `${clienteObj.sigla} - ${clienteObj.nome}` : "Cliente",
-                                      servicos_resumo: orcamento.servicos.join(", "),
-                                      valor_total: orcamento.valorTotal,
-                                      validade_dias: 30,
-                                      titulo_artigo: orcamento.licitacao?.titulo,
-                                      docente_responsavel: orcamento.licitacao?.docente,
-                                      numero_processo: orcamento.licitacao?.processo,
-                                    })
-                                    toast.success(`Gerando PDF: ${orcamento.codigo}`)
-                                  } else {
-                                    toast.success(`${acao.mensagem}: ${orcamento.codigo}`)
-                                  }
-                                }}
-                              />
-                            }
-                          >
-                            <acao.icon />
-                          </TooltipTrigger>
-                          <TooltipContent>{acao.label}</TooltipContent>
-                        </Tooltip>
-                      ))}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex flex-wrap gap-1.5">
+                    {orcamento.servicos.map((servico, i) => (
+                      <ServicoPill key={`${servico}-${i}`} nome={servico} />
+                    ))}
+                  </div>
+                </TableCell>
+
+                <TableCell className="text-right">
+                  <span className="font-semibold tabular-nums">
+                    {formatBRL(orcamento.valorTotal)}
+                  </span>
+                </TableCell>
+
+                <TableCell>
+                  {orcamento.status === "concluido" ? (
+                    <Badge variant="outline" className={BADGE_STATUS_STYLE["concluido"]}>
+                      {STATUS_LABEL["concluido"]}
+                    </Badge>
+                  ) : (
+                    <Select
+                      value={orcamento.status}
+                      onValueChange={(v) =>
+                        void handleMudarStatus(orcamento.id, v as StatusOrcamento)
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background border">
+                        <SelectValue>
+                          {(value: string) => (
+                            <Badge variant="outline" className={BADGE_STATUS_STYLE[value as StatusOrcamento] || ""}>
+                              {STATUS_LABEL[value as StatusOrcamento] || value}
+                            </Badge>
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {(Object.keys(STATUS_LABEL) as StatusOrcamento[])
+                            .filter((st) => st !== "concluido")
+                            .map((st) => (
+                              <SelectItem key={st} value={st} className="text-xs">
+                                {STATUS_LABEL[st]}
+                              </SelectItem>
+                            ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  <div className="flex items-center justify-end gap-1">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Gerar PDF — ${orcamento.codigo}`}
+                            onClick={() => {
+                              gerarPDFOrcamento({
+                                codigo_proposta: orcamento.codigo,
+                                cliente_nome: `${orcamento.clienteSigla} - ${orcamento.clienteNome}`,
+                                servicos_resumo: orcamento.servicos.join(", "),
+                                valor_total: orcamento.valorTotal,
+                                validade_dias: 30,
+                                titulo_artigo: orcamento.licitacao?.titulo,
+                                docente_responsavel: orcamento.licitacao?.docente,
+                                numero_processo: orcamento.licitacao?.processo,
+                              })
+                              toast.success(`Gerando PDF: ${orcamento.codigo}`)
+                            }}
+                          />
+                        }
+                      >
+                        <FileTextIcon />
+                      </TooltipTrigger>
+                      <TooltipContent>Gerar PDF</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Editar — ${orcamento.codigo}`}
+                            onClick={() => handleAbrirEdicao(orcamento)}
+                          />
+                        }
+                      >
+                        <PencilIcon />
+                      </TooltipTrigger>
+                      <TooltipContent>Editar orçamento</TooltipContent>
+                    </Tooltip>
+
+                    {orcamento.status !== "concluido" && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              aria-label={`Concluir orçamento — ${orcamento.codigo}`}
+                              onClick={() => handleConcluir(orcamento)}
+                            />
+                          }
+                        >
+                          <CheckCircle2Icon />
+                        </TooltipTrigger>
+                        <TooltipContent>Concluir e encerrar</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
 
@@ -259,7 +369,7 @@ export function BudgetsView() {
             <EmptyHeader>
               <EmptyTitle>Nenhum orçamento encontrado</EmptyTitle>
               <EmptyDescription>
-                Ajuste a busca ou o filtro de status para ver outras propostas.
+                Ajuste a busca ou o filtro para visualizar outras propostas.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -275,6 +385,7 @@ export function BudgetsView() {
       <BudgetDrawer
         open={drawerAberto}
         onOpenChange={setDrawerAberto}
+        orcamentoParaEditar={orcamentoParaEditar}
         onSaved={() => void carregarOrcamentos()}
       />
     </div>

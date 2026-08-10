@@ -5,7 +5,6 @@ import { toast } from "sonner"
 import {
   ArrowRightLeftIcon,
   FileTextIcon,
-  MessageCircleIcon,
   PlusIcon,
   SaveIcon,
   SparklesIcon,
@@ -42,15 +41,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  CLIENTES,
-  PARCEIROS,
-  SERVICOS,
-  UNIDADES,
-  formatBRL,
-  type Unidade,
-} from "@/lib/data"
+import { formatBRL, type Orcamento, type Unidade, UNIDADES } from "@/lib/data"
 import { salvarOrcamento } from "@/lib/orcamentos-api"
+import {
+  listarClientesDB,
+  listarServicosDB,
+  listarTerceirizadosDB,
+  type ClienteDB,
+  type ServicoDB,
+  type TerceirizadoDB,
+} from "@/lib/cadastros-api"
+import { gerarPDFOrcamento } from "@/lib/pdf"
 
 type Item = {
   id: string
@@ -63,52 +64,109 @@ type Item = {
   repasse: number
 }
 
-function novoItem(): Item {
-  return {
-    id: crypto.randomUUID(),
-    servicoId: SERVICOS[0].id,
-    unidade: SERVICOS[0].unidade,
-    quantidade: 1,
-    valorUnitario: SERVICOS[0].preco,
-    terceirizado: false,
-    parceiroId: "",
-    repasse: 0,
-  }
-}
-
-function estadoInicial() {
-  return {
-    clienteId: CLIENTES[0].id,
-    exigencia: false,
-    tituloArtigo: "",
-    docente: "",
-    cpfProfessor: "",
-    numeroProcesso: "",
-    itens: [novoItem()] as Item[],
-    totalAjustado: null as number | null,
-    editandoTotal: false,
-  }
-}
-
 export function BudgetDrawer({
   open,
   onOpenChange,
+  orcamentoParaEditar,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  orcamentoParaEditar?: (Orcamento & { rawItens?: Item[] }) | null
   onSaved?: () => void
 }) {
-  const [clienteId, setClienteId] = React.useState<string>(CLIENTES[0].id)
+  const [clientes, setClientes] = React.useState<ClienteDB[]>([])
+  const [servicos, setServicos] = React.useState<ServicoDB[]>([])
+  const [parceiros, setParceiros] = React.useState<TerceirizadoDB[]>([])
+
+  const [clienteId, setClienteId] = React.useState<string>("")
   const [exigencia, setExigencia] = React.useState(false)
   const [tituloArtigo, setTituloArtigo] = React.useState("")
   const [docente, setDocente] = React.useState("")
   const [cpfProfessor, setCpfProfessor] = React.useState("")
   const [numeroProcesso, setNumeroProcesso] = React.useState("")
-  const [itens, setItens] = React.useState<Item[]>([novoItem()])
+  const [itens, setItens] = React.useState<Item[]>([])
   const [totalAjustado, setTotalAjustado] = React.useState<number | null>(null)
   const [editandoTotal, setEditandoTotal] = React.useState(false)
   const [salvando, setSalvando] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!open) return
+
+    async function carregarTudo() {
+      const [listC, listS, listP] = await Promise.all([
+        listarClientesDB(),
+        listarServicosDB(),
+        listarTerceirizadosDB(),
+      ])
+
+      setClientes(listC)
+      setServicos(listS)
+      setParceiros(listP)
+
+      if (orcamentoParaEditar) {
+        setClienteId(orcamentoParaEditar.clienteId)
+        if (orcamentoParaEditar.licitacao) {
+          setExigencia(true)
+          setTituloArtigo(orcamentoParaEditar.licitacao.titulo || "")
+          setDocente(orcamentoParaEditar.licitacao.docente || "")
+          setCpfProfessor(orcamentoParaEditar.licitacao.cpf || "")
+          setNumeroProcesso(orcamentoParaEditar.licitacao.processo || "")
+        } else {
+          setExigencia(false)
+        }
+        setTotalAjustado(orcamentoParaEditar.valorTotal)
+
+        if (orcamentoParaEditar.rawItens && orcamentoParaEditar.rawItens.length > 0) {
+          setItens(
+            orcamentoParaEditar.rawItens.map((item) => ({
+              ...item,
+              id: crypto.randomUUID(),
+              unidade: "palavra" as Unidade,
+            }))
+          )
+        } else if (listS.length > 0) {
+          setItens([
+            {
+              id: crypto.randomUUID(),
+              servicoId: listS[0].id!,
+              unidade: "palavra",
+              quantidade: 1,
+              valorUnitario: listS[0].preco_padrao,
+              terceirizado: false,
+              parceiroId: listP[0]?.id || "",
+              repasse: 0,
+            },
+          ])
+        }
+      } else {
+        setClienteId(listC[0]?.id || "")
+        setExigencia(false)
+        setTituloArtigo("")
+        setDocente("")
+        setCpfProfessor("")
+        setNumeroProcesso("")
+        setTotalAjustado(null)
+
+        if (listS.length > 0) {
+          setItens([
+            {
+              id: crypto.randomUUID(),
+              servicoId: listS[0].id!,
+              unidade: "palavra",
+              quantidade: 1,
+              valorUnitario: listS[0].preco_padrao,
+              terceirizado: false,
+              parceiroId: listP[0]?.id || "",
+              repasse: 0,
+            },
+          ])
+        }
+      }
+    }
+
+    void carregarTudo()
+  }, [open, orcamentoParaEditar])
 
   const faturamento = itens.reduce(
     (soma, item) => soma + item.quantidade * item.valorUnitario,
@@ -129,29 +187,19 @@ export function BudgetDrawer({
   }
 
   function trocarServico(id: string, servicoId: string) {
-    const servico = SERVICOS.find((s) => s.id === servicoId)
+    const servico = servicos.find((s) => s.id === servicoId)
     if (!servico) return
     atualizarItem(id, {
       servicoId,
-      unidade: servico.unidade,
-      valorUnitario: servico.preco,
+      valorUnitario: servico.preco_padrao,
     })
   }
 
-  function reiniciarFormulario() {
-    const inicial = estadoInicial()
-    setClienteId(inicial.clienteId)
-    setExigencia(inicial.exigencia)
-    setTituloArtigo(inicial.tituloArtigo)
-    setDocente(inicial.docente)
-    setCpfProfessor(inicial.cpfProfessor)
-    setNumeroProcesso(inicial.numeroProcesso)
-    setItens(inicial.itens)
-    setTotalAjustado(inicial.totalAjustado)
-    setEditandoTotal(inicial.editandoTotal)
-  }
-
-  async function handleSalvarRascunho() {
+  async function handleSalvar() {
+    if (!clienteId) {
+      toast.error("Cadastre ou selecione um cliente no sistema")
+      return
+    }
     if (itens.length === 0) {
       toast.error("Adicione pelo menos um serviço ao orçamento")
       return
@@ -160,6 +208,7 @@ export function BudgetDrawer({
     setSalvando(true)
     try {
       const resultado = await salvarOrcamento({
+        id: orcamentoParaEditar?.id,
         clienteId,
         exigencia,
         tituloArtigo,
@@ -170,7 +219,6 @@ export function BudgetDrawer({
         repasses,
         itens: itens.map((item) => ({
           servicoId: item.servicoId,
-          unidade: item.unidade,
           quantidade: item.quantidade,
           valorUnitario: item.valorUnitario,
           terceirizado: item.terceirizado,
@@ -178,8 +226,11 @@ export function BudgetDrawer({
           repasse: item.repasse,
         })),
       })
-      toast.success(`Rascunho salvo: ${resultado.codigo}`)
-      reiniciarFormulario()
+      toast.success(
+        orcamentoParaEditar
+          ? "Orçamento atualizado com sucesso!"
+          : `Proposta gerada: ${resultado.codigo}`
+      )
       onSaved?.()
       onOpenChange(false)
     } catch (erro) {
@@ -190,16 +241,33 @@ export function BudgetDrawer({
     }
   }
 
+  function handleGerarPDF() {
+    const clienteObj = clientes.find((c) => c.id === clienteId)
+    gerarPDFOrcamento({
+      codigo_proposta: orcamentoParaEditar?.codigo || "ORC-NOVO",
+      cliente_nome: clienteObj ? clienteObj.nome : "Cliente",
+      servicos_resumo: itens
+        .map((i) => servicos.find((s) => s.id === i.servicoId)?.nome)
+        .filter(Boolean)
+        .join(", "),
+      valor_total: totalFinal,
+      validade_dias: 30,
+      titulo_artigo: exigencia ? tituloArtigo : undefined,
+      docente_responsavel: exigencia ? docente : undefined,
+      numero_processo: exigencia ? numeroProcesso : undefined,
+    })
+    toast.success("PDF gerado com sucesso!")
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full gap-0 p-0 sm:max-w-xl data-[side=right]:sm:max-w-xl"
-      >
+      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl">
         <SheetHeader className="border-b bg-card px-5 py-4">
-          <SheetTitle className="text-base">Novo orçamento</SheetTitle>
+          <SheetTitle className="text-base">
+            {orcamentoParaEditar ? `Editar ${orcamentoParaEditar.codigo}` : "Novo orçamento"}
+          </SheetTitle>
           <SheetDescription>
-            Monte a proposta, calcule repasses e envie ao cliente.
+            Monte a proposta, calcule repasses e salve no banco de dados.
           </SheetDescription>
         </SheetHeader>
 
@@ -214,18 +282,16 @@ export function BudgetDrawer({
                     <SelectTrigger id="cliente">
                       <SelectValue>
                         {(value: string) => {
-                          const cliente = CLIENTES.find((c) => c.id === value)
-                          return cliente
-                            ? `${cliente.sigla} — ${cliente.nome}`
-                            : "Selecione o cliente"
+                          const cliente = clientes.find((c) => c.id === value)
+                          return cliente ? cliente.nome : "Selecione o cliente"
                         }}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {CLIENTES.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.sigla} — {cliente.nome}
+                        {clientes.map((c) => (
+                          <SelectItem key={c.id} value={c.id!}>
+                            {c.nome}
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -233,10 +299,7 @@ export function BudgetDrawer({
                   </Select>
                 </Field>
 
-                <Field
-                  orientation="horizontal"
-                  className="rounded-lg border bg-card px-3 py-3"
-                >
+                <Field orientation="horizontal" className="rounded-lg border bg-card px-3 py-3">
                   <div className="flex flex-col gap-0.5">
                     <FieldTitle>Exigência universitária / licitação</FieldTitle>
                     <FieldDescription>
@@ -246,7 +309,6 @@ export function BudgetDrawer({
                   <Switch
                     checked={exigencia}
                     onCheckedChange={(v) => setExigencia(Boolean(v))}
-                    aria-label="Exigência universitária ou licitação"
                   />
                 </Field>
 
@@ -256,7 +318,7 @@ export function BudgetDrawer({
                       <FieldLabel htmlFor="titulo">Título do artigo</FieldLabel>
                       <Input
                         id="titulo"
-                        placeholder="Ex: Biomarcadores inflamatórios em cardiopatias"
+                        placeholder="Ex: Biomarcadores inflamatórios"
                         value={tituloArtigo}
                         onChange={(e) => setTituloArtigo(e.target.value)}
                       />
@@ -276,7 +338,6 @@ export function BudgetDrawer({
                         <Input
                           id="cpf"
                           placeholder="000.000.000-00"
-                          inputMode="numeric"
                           value={cpfProfessor}
                           onChange={(e) => setCpfProfessor(e.target.value)}
                         />
@@ -304,7 +365,23 @@ export function BudgetDrawer({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setItens((atual) => [...atual, novoItem()])}
+                  onClick={() => {
+                    if (servicos.length > 0) {
+                      setItens((atual) => [
+                        ...atual,
+                        {
+                          id: crypto.randomUUID(),
+                          servicoId: servicos[0].id!,
+                          unidade: "palavra",
+                          quantidade: 1,
+                          valorUnitario: servicos[0].preco_padrao,
+                          terceirizado: false,
+                          parceiroId: parceiros[0]?.id || "",
+                          repasse: 0,
+                        },
+                      ])
+                    }
+                  }}
                 >
                   <PlusIcon data-icon="inline-start" />
                   Adicionar linha
@@ -315,10 +392,7 @@ export function BudgetDrawer({
                 {itens.map((item, index) => {
                   const subtotal = item.quantidade * item.valorUnitario
                   return (
-                    <div
-                      key={item.id}
-                      className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-xs"
-                    >
+                    <div key={item.id} className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-medium text-muted-foreground">
                           Serviço {index + 1}
@@ -326,11 +400,8 @@ export function BudgetDrawer({
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Remover serviço ${index + 1}`}
                           disabled={itens.length === 1}
-                          onClick={() =>
-                            setItens((atual) => atual.filter((i) => i.id !== item.id))
-                          }
+                          onClick={() => setItens((atual) => atual.filter((i) => i.id !== item.id))}
                         >
                           <Trash2Icon />
                         </Button>
@@ -345,16 +416,15 @@ export function BudgetDrawer({
                           <SelectTrigger id={`servico-${item.id}`}>
                             <SelectValue>
                               {(value: string) =>
-                                SERVICOS.find((s) => s.id === value)?.nome ??
-                                "Selecione o serviço"
+                                servicos.find((s) => s.id === value)?.nome ?? "Selecione o serviço"
                               }
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectGroup>
-                              {SERVICOS.map((servico) => (
-                                <SelectItem key={servico.id} value={servico.id}>
-                                  {servico.nome}
+                              {servicos.map((s) => (
+                                <SelectItem key={s.id} value={s.id!}>
+                                  {s.nome}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
@@ -362,46 +432,16 @@ export function BudgetDrawer({
                         </Select>
                       </Field>
 
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <Field>
-                          <FieldLabel htmlFor={`unidade-${item.id}`}>Unidade</FieldLabel>
-                          <Select
-                            value={item.unidade}
-                            onValueChange={(v) =>
-                              atualizarItem(item.id, { unidade: v as Unidade })
-                            }
-                          >
-                            <SelectTrigger id={`unidade-${item.id}`}>
-                              <SelectValue>
-                                {(value: string) =>
-                                  UNIDADES.find((u) => u.value === value)?.label ??
-                                  "Unidade"
-                                }
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {UNIDADES.map((unidade) => (
-                                  <SelectItem key={unidade.value} value={unidade.value}>
-                                    {unidade.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </Field>
+                      <div className="grid gap-3 sm:grid-cols-2">
                         <Field>
                           <FieldLabel htmlFor={`qtd-${item.id}`}>Quantidade</FieldLabel>
                           <Input
                             id={`qtd-${item.id}`}
                             type="number"
                             min={0}
-                            step="1"
                             value={item.quantidade}
                             onChange={(e) =>
-                              atualizarItem(item.id, {
-                                quantidade: Number(e.target.value) || 0,
-                              })
+                              atualizarItem(item.id, { quantidade: Number(e.target.value) || 0 })
                             }
                           />
                         </Field>
@@ -414,9 +454,7 @@ export function BudgetDrawer({
                             step="0.01"
                             value={item.valorUnitario}
                             onChange={(e) =>
-                              atualizarItem(item.id, {
-                                valorUnitario: Number(e.target.value) || 0,
-                              })
+                              atualizarItem(item.id, { valorUnitario: Number(e.target.value) || 0 })
                             }
                           />
                         </Field>
@@ -430,10 +468,7 @@ export function BudgetDrawer({
                             atualizarItem(item.id, { terceirizado: Boolean(v) })
                           }
                         />
-                        <FieldLabel
-                          htmlFor={`terceiro-${item.id}`}
-                          className="font-normal"
-                        >
+                        <FieldLabel htmlFor={`terceiro-${item.id}`} className="font-normal">
                           Serviço terceirizado
                         </FieldLabel>
                       </Field>
@@ -451,16 +486,15 @@ export function BudgetDrawer({
                               <SelectTrigger id={`parceiro-${item.id}`}>
                                 <SelectValue>
                                   {(value: string) =>
-                                    PARCEIROS.find((p) => p.id === value)?.nome ??
-                                    "Selecione o parceiro"
+                                    parceiros.find((p) => p.id === value)?.nome ?? "Selecione"
                                   }
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
-                                  {PARCEIROS.map((parceiro) => (
-                                    <SelectItem key={parceiro.id} value={parceiro.id}>
-                                      {parceiro.nome}
+                                  {parceiros.map((p) => (
+                                    <SelectItem key={p.id} value={p.id!}>
+                                      {p.nome}
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
@@ -468,9 +502,7 @@ export function BudgetDrawer({
                             </Select>
                           </Field>
                           <Field>
-                            <FieldLabel htmlFor={`repasse-${item.id}`}>
-                              Valor do repasse (R$)
-                            </FieldLabel>
+                            <FieldLabel htmlFor={`repasse-${item.id}`}>Valor do repasse (R$)</FieldLabel>
                             <Input
                               id={`repasse-${item.id}`}
                               type="number"
@@ -478,9 +510,7 @@ export function BudgetDrawer({
                               step="0.01"
                               value={item.repasse}
                               onChange={(e) =>
-                                atualizarItem(item.id, {
-                                  repasse: Number(e.target.value) || 0,
-                                })
+                                atualizarItem(item.id, { repasse: Number(e.target.value) || 0 })
                               }
                             />
                           </Field>
@@ -489,9 +519,7 @@ export function BudgetDrawer({
 
                       <div className="flex items-center justify-between border-t pt-3 text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span className="font-semibold tabular-nums">
-                          {formatBRL(subtotal)}
-                        </span>
+                        <span className="font-semibold tabular-nums">{formatBRL(subtotal)}</span>
                       </div>
                     </div>
                   )
@@ -511,7 +539,7 @@ export function BudgetDrawer({
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <ArrowRightLeftIcon className="size-3.5" aria-hidden="true" />
+                    <ArrowRightLeftIcon className="size-3.5" />
                     Repasses a parceiros
                   </span>
                   <span className="font-medium tabular-nums text-muted-foreground">
@@ -522,7 +550,7 @@ export function BudgetDrawer({
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Seu lucro líquido</span>
-                  <span className="text-lg font-semibold tabular-nums text-success">
+                  <span className="text-lg font-semibold tabular-nums text-emerald-600">
                     {formatBRL(lucro)}
                   </span>
                 </div>
@@ -554,33 +582,19 @@ export function BudgetDrawer({
                     {editandoTotal ? "Arredondar" : "Editar"}
                   </Button>
                 </div>
-                <FieldDescription>
-                  Ative a edição para ajustar manualmente ou arredondar os centavos.
-                </FieldDescription>
               </Field>
             </FieldSet>
           </FieldGroup>
         </div>
 
-        <SheetFooter className="grid gap-2 border-t bg-card px-5 py-4 sm:grid-cols-3">
-          <Button
-            variant="outline"
-            disabled={salvando}
-            onClick={() => void handleSalvarRascunho()}
-          >
+        <SheetFooter className="grid gap-2 border-t bg-card px-5 py-4 sm:grid-cols-2">
+          <Button variant="outline" disabled={salvando} onClick={() => void handleSalvar()}>
             <SaveIcon data-icon="inline-start" />
-            {salvando ? "Salvando…" : "Salvar rascunho"}
+            {salvando ? "Salvando…" : "Salvar orçamento"}
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => toast.success("PDF profissional gerado")}
-          >
+          <Button variant="secondary" onClick={handleGerarPDF}>
             <FileTextIcon data-icon="inline-start" />
             Gerar PDF
-          </Button>
-          <Button onClick={() => toast.success("Proposta enviada por WhatsApp")}>
-            <MessageCircleIcon data-icon="inline-start" />
-            WhatsApp
           </Button>
         </SheetFooter>
       </SheetContent>

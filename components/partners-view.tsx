@@ -13,14 +13,6 @@ import {
 } from "@/components/ui/input-group"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -39,7 +31,11 @@ import {
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { PARCEIROS, formatBRL, type Parceiro } from "@/lib/data"
+import {
+  listarTerceirizadosDB,
+  salvarTerceirizadoDB,
+  type TerceirizadoDB,
+} from "@/lib/cadastros-api"
 
 function iniciais(nome: string) {
   return nome
@@ -51,95 +47,98 @@ function iniciais(nome: string) {
     .toUpperCase()
 }
 
-function formularioInicial() {
-  return {
+export function PartnersView() {
+  const [parceiros, setParceiros] = React.useState<TerceirizadoDB[]>([])
+  const [busca, setBusca] = React.useState("")
+  const [drawerAberto, setDrawerAberto] = React.useState(false)
+  const [parceiroEditando, setParceiroEditando] = React.useState<TerceirizadoDB | null>(null)
+  const [salvando, setSalvando] = React.useState(false)
+
+  const [form, setForm] = React.useState({
     nome: "",
     especialidade: "",
-    repasseMedio: "",
-    trabalhos: "",
-  }
-}
-
-export function PartnersView() {
-  const [parceiros, setParceiros] = React.useState<Parceiro[]>(PARCEIROS)
-  const [busca, setBusca] = React.useState("")
-  const [especialidadeFiltro, setEspecialidadeFiltro] = React.useState<string>("todas")
-  const [drawerAberto, setDrawerAberto] = React.useState(false)
-  const [form, setForm] = React.useState(formularioInicial)
-
-  const especialidades = React.useMemo(
-    () => Array.from(new Set(parceiros.map((p) => p.especialidade))).sort(),
-    [parceiros]
-  )
-
-  const linhas = parceiros.filter((parceiro) => {
-    const termo = busca.trim().toLowerCase()
-    const buscaOk =
-      termo === "" ||
-      parceiro.nome.toLowerCase().includes(termo) ||
-      parceiro.especialidade.toLowerCase().includes(termo)
-    const especialidadeOk =
-      especialidadeFiltro === "todas" || parceiro.especialidade === especialidadeFiltro
-    return buscaOk && especialidadeOk
+    chavePix: "",
+    telefone: "",
   })
 
-  function salvar() {
-    if (form.nome.trim() === "" || form.especialidade.trim() === "") {
-      toast.error("Informe o nome e a especialidade")
+  const carregar = React.useCallback(async () => {
+    try {
+      const dados = await listarTerceirizadosDB()
+      setParceiros(dados)
+    } catch {
+      toast.error("Erro ao carregar parceiros")
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void carregar()
+  }, [carregar])
+
+  function handleAbrirCriar() {
+    setParceiroEditando(null)
+    setForm({ nome: "", especialidade: "", chavePix: "", telefone: "" })
+    setDrawerAberto(true)
+  }
+
+  function handleAbrirEditar(p: TerceirizadoDB) {
+    setParceiroEditando(p)
+    setForm({
+      nome: p.nome,
+      especialidade: p.especialidade || "",
+      chavePix: p.chave_pix || "",
+      telefone: p.telefone || "",
+    })
+    setDrawerAberto(true)
+  }
+
+  async function handleSalvar() {
+    if (!form.nome.trim()) {
+      toast.error("Informe o nome do parceiro")
       return
     }
-    const novo: Parceiro = {
-      id: crypto.randomUUID(),
-      nome: form.nome.trim(),
-      especialidade: form.especialidade.trim(),
-      repasseMedio: Number(form.repasseMedio) || 0,
-      trabalhos: Number(form.trabalhos) || 0,
+
+    setSalvando(true)
+    try {
+      await salvarTerceirizadoDB({
+        id: parceiroEditando?.id,
+        nome: form.nome.trim(),
+        especialidade: form.especialidade.trim(),
+        chave_pix: form.chavePix.trim(),
+        telefone: form.telefone.trim(),
+      })
+      toast.success(parceiroEditando ? "Parceiro atualizado!" : "Parceiro adicionado!")
+      setDrawerAberto(false)
+      await carregar()
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar parceiro")
+    } finally {
+      setSalvando(false)
     }
-    setParceiros((atual) => [novo, ...atual])
-    toast.success(`Parceiro ${novo.nome} adicionado`)
-    setForm(formularioInicial())
-    setDrawerAberto(false)
   }
+
+  const linhas = parceiros.filter((p) => {
+    const termo = busca.trim().toLowerCase()
+    return (
+      termo === "" ||
+      p.nome.toLowerCase().includes(termo) ||
+      (p.especialidade && p.especialidade.toLowerCase().includes(termo))
+    )
+  })
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <InputGroup className="bg-card sm:max-w-xs">
-            <InputGroupAddon>
-              <SearchIcon />
-            </InputGroupAddon>
-            <InputGroupInput
-              placeholder="Buscar parceiro ou especialidade"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              aria-label="Busca rápida de parceiros"
-            />
-          </InputGroup>
-          <Select
-            value={especialidadeFiltro}
-            onValueChange={(v) => setEspecialidadeFiltro(v as string)}
-          >
-            <SelectTrigger className="bg-card sm:w-60" aria-label="Filtrar por especialidade">
-              <SelectValue>
-                {(value: string) =>
-                  value === "todas" ? "Todas as especialidades" : value
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="todas">Todas as especialidades</SelectItem>
-                {especialidades.map((esp) => (
-                  <SelectItem key={esp} value={esp}>
-                    {esp}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={() => setDrawerAberto(true)}>
+        <InputGroup className="bg-card sm:max-w-xs">
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            placeholder="Buscar parceiro ou especialidade"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </InputGroup>
+        <Button onClick={handleAbrirCriar}>
           <PlusIcon data-icon="inline-start" />
           Adicionar parceiro
         </Button>
@@ -151,32 +150,28 @@ export function PartnersView() {
             <TableRow className="bg-secondary/60 hover:bg-secondary/60">
               <TableHead className="min-w-56">Parceiro</TableHead>
               <TableHead className="min-w-56">Especialidade</TableHead>
-              <TableHead className="w-44 text-right">Repasse médio</TableHead>
-              <TableHead className="w-32 text-right">Trabalhos</TableHead>
+              <TableHead className="w-44">Chave PIX</TableHead>
               <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {linhas.map((parceiro) => (
-              <TableRow key={parceiro.id} className="h-16">
+            {linhas.map((p) => (
+              <TableRow key={p.id} className="h-16">
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8">
                       <AvatarFallback className="text-xs">
-                        {iniciais(parceiro.nome)}
+                        {iniciais(p.nome)}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{parceiro.nome}</span>
+                    <span className="font-medium">{p.nome}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {parceiro.especialidade}
+                  {p.especialidade || "—"}
                 </TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatBRL(parceiro.repasseMedio)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {parceiro.trabalhos}
+                <TableCell className="text-muted-foreground font-mono text-xs">
+                  {p.chave_pix || "—"}
                 </TableCell>
                 <TableCell className="text-right">
                   <Tooltip>
@@ -185,8 +180,8 @@ export function PartnersView() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Editar ${parceiro.nome}`}
-                          onClick={() => toast.info(`Editar ${parceiro.nome}`)}
+                          aria-label={`Editar ${p.nome}`}
+                          onClick={() => handleAbrirEditar(p)}
                         />
                       }
                     >
@@ -205,7 +200,7 @@ export function PartnersView() {
             <EmptyHeader>
               <EmptyTitle>Nenhum parceiro encontrado</EmptyTitle>
               <EmptyDescription>
-                Ajuste a busca ou o filtro para ver outros parceiros terceirizados.
+                Ajuste a busca ou adicione um novo profissional terceirizado.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -213,21 +208,20 @@ export function PartnersView() {
       </div>
 
       <Sheet open={drawerAberto} onOpenChange={setDrawerAberto}>
-        <SheetContent
-          side="right"
-          className="w-full gap-0 p-0 sm:max-w-md data-[side=right]:sm:max-w-md"
-        >
+        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md">
           <SheetHeader className="border-b bg-card px-5 py-4">
-            <SheetTitle className="text-base">Novo parceiro</SheetTitle>
+            <SheetTitle className="text-base">
+              {parceiroEditando ? "Editar parceiro" : "Novo parceiro"}
+            </SheetTitle>
             <SheetDescription>
-              Cadastre um profissional ou estúdio terceirizado.
+              Cadastre ou edite um profissional terceirizado.
             </SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto px-5 py-5">
             <FieldGroup className="gap-4">
               <Field>
-                <FieldLabel htmlFor="parceiro-nome">Nome</FieldLabel>
+                <FieldLabel htmlFor="parceiro-nome">Nome completo</FieldLabel>
                 <Input
                   id="parceiro-nome"
                   placeholder="Marina Toledo"
@@ -241,48 +235,25 @@ export function PartnersView() {
                   id="parceiro-esp"
                   placeholder="Tradução EN acadêmica"
                   value={form.especialidade}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, especialidade: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, especialidade: e.target.value }))}
                 />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="parceiro-repasse">Repasse médio (R$)</FieldLabel>
-                  <Input
-                    id="parceiro-repasse"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    placeholder="0,00"
-                    value={form.repasseMedio}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, repasseMedio: e.target.value }))
-                    }
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="parceiro-trab">Trabalhos</FieldLabel>
-                  <Input
-                    id="parceiro-trab"
-                    type="number"
-                    min={0}
-                    step="1"
-                    placeholder="0"
-                    value={form.trabalhos}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, trabalhos: e.target.value }))
-                    }
-                  />
-                </Field>
-              </div>
+              <Field>
+                <FieldLabel htmlFor="parceiro-pix">Chave PIX</FieldLabel>
+                <Input
+                  id="parceiro-pix"
+                  placeholder="marina@pix.com"
+                  value={form.chavePix}
+                  onChange={(e) => setForm((f) => ({ ...f, chavePix: e.target.value }))}
+                />
+              </Field>
             </FieldGroup>
           </div>
 
           <SheetFooter className="border-t bg-card px-5 py-4">
-            <Button onClick={salvar}>
+            <Button onClick={handleSalvar} disabled={salvando}>
               <SaveIcon data-icon="inline-start" />
-              Salvar parceiro
+              {salvando ? "Salvando..." : "Salvar parceiro"}
             </Button>
           </SheetFooter>
         </SheetContent>
