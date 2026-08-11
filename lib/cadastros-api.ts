@@ -243,12 +243,6 @@ export async function salvarBalancoDB(balanco: BalancoDB) {
   }
 }
 
-export async function excluirBalancoDB(id: string) {
-  const { error } = await supabase.from("balanco_mensal").delete().eq("id", id)
-  if (error) throw new Error(error.message)
-}
-
-
 // ==========================================
 // 4. BALANÇO MENSAL
 // ==========================================
