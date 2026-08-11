@@ -12,7 +12,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-  Trash2Icon,
 import {
   Select,
   SelectContent,
@@ -51,7 +50,6 @@ type OrcamentoExibicao = Orcamento & {
   clienteSigla: string
   ehUniversidade: boolean
   rawItens?: any[]
-  excluirOrcamento,
 }
 
 const BADGE_STATUS_STYLE: Record<StatusOrcamento, string> = {
@@ -128,18 +126,6 @@ export function BudgetsView() {
       toast.success(`Orçamento ${orcamento.codigo} excluído com sucesso!`)
     } catch {
       toast.error("Erro ao excluir orçamento no banco")
-  async function handleExcluir(orcamento: OrcamentoExibicao) {
-    if (!confirm(`Tem certeza que deseja excluir o orçamento "${orcamento.codigo}"? Esta ação não pode ser desfeita.`)) return
-    setOrcamentos((atual) => atual.filter((o) => o.id !== orcamento.id))
-    try {
-      await excluirOrcamento(orcamento.id)
-      toast.success(`Orçamento ${orcamento.codigo} excluído com sucesso!`)
-    } catch {
-      toast.error("Erro ao excluir orçamento no banco")
-      void carregarOrcamentos()
-    }
-  }
-
       void carregarOrcamentos()
     }
   }
@@ -371,23 +357,6 @@ export function BudgetsView() {
                           }
                         >
                           <CheckCircle2Icon />
-
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive hover:bg-destructive/10"
-                            aria-label={`Excluir orçamento — ${orcamento.codigo}`}
-                            onClick={() => handleExcluir(orcamento)}
-                          />
-                        }
-                      >
-                        <Trash2Icon />
-                      </TooltipTrigger>
-                      <TooltipContent>Excluir orçamento</TooltipContent>
-                    </Tooltip>
                         </TooltipTrigger>
                         <TooltipContent>Concluir e encerrar</TooltipContent>
                       </Tooltip>
