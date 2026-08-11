@@ -30,8 +30,8 @@ import { ProfileModal } from "@/components/profile-modal"
 
 const MENU_ITENS = [
   { value: "dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { value: "orcamentos", label: "Orçamentos", icon: FileTextIcon },
   { value: "clientes", label: "Clientes & Instituições", icon: UsersIcon },
+  { value: "orcamentos", label: "Orçamentos", icon: FileTextIcon },
   { value: "servicos", label: "Serviços & Preços", icon: TagIcon },
   { value: "parceiros", label: "Parceiros Terceirizados", icon: HandshakeIcon },
   { value: "balanco", label: "Balanço & Repasses", icon: TrendingUpIcon },

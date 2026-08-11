@@ -27,10 +27,47 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [mostrarSenha, setMostrarSenha] = React.useState(false)
   const [processando, setProcessando] = React.useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    // Acesso direto ao dashboard, sem validação de credenciais/sessão.
-    onAuthenticated()
+    if (!email || !senha) {
+      toast.error("Informe e-mail e senha.")
+      return
+    }
+    setProcessando(true)
+    try {
+      if (modo === "login") {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: senha,
+        })
+        if (error) {
+          toast.error("E-mail ou senha inválidos.")
+          return
+        }
+        onAuthenticated()
+      } else {
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: senha,
+          options: {
+            emailRedirectTo:
+              process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
+              `${window.location.origin}/auth/callback`,
+          },
+        })
+        if (error) {
+          toast.error(error.message)
+          return
+        }
+        toast.success("Conta criada! Você já pode acessar.")
+        setModo("login")
+      }
+    } catch (err) {
+      console.error("[v0] Erro de autenticação:", err)
+      toast.error("Não foi possível concluir. Tente novamente.")
+    } finally {
+      setProcessando(false)
+    }
   }
 
   const ehLogin = modo === "login"
@@ -71,7 +108,7 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
                   id="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="voce@empresa.com"
+                  placeholder="admin@teste.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -88,7 +125,7 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
                   id="senha"
                   type={mostrarSenha ? "text" : "password"}
                   autoComplete={ehLogin ? "current-password" : "new-password"}
-                  placeholder="••••••••"
+                  placeholder="123456"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                 />
@@ -104,6 +141,15 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
               </InputGroup>
             </Field>
           </FieldGroup>
+
+          {ehLogin ? (
+            <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
+              Credenciais de teste:{" "}
+              <span className="font-medium text-foreground">admin@teste.com</span>
+              {" / "}
+              <span className="font-medium text-foreground">123456</span>
+            </div>
+          ) : null}
 
           <Button type="submit" size="lg" disabled={processando} className="w-full">
             {processando
