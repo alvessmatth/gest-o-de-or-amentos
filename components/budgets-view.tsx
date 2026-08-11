@@ -12,7 +12,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-  Trash2Icon,
 import {
   Select,
   SelectContent,
