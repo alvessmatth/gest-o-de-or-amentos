@@ -1,33 +1,60 @@
 "use client"
 
 import * as React from "react"
-import {
-  ArrowUpRightIcon,
-  CheckCircle2Icon,
-  ClockIcon,
-  DollarSignIcon,
-  FileTextIcon,
-  TrendingUpIcon,
-} from "lucide-react"
+import { ArrowUpRight as ArrowUpRightIcon, CircleCheck as CheckCircle2Icon, Clock as ClockIcon, DollarSign as DollarSignIcon, FileText as FileTextIcon, TrendingUp as TrendingUpIcon } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { BALANCO, ORCAMENTOS, formatBRL } from "@/lib/data"
+import { formatBRL } from "@/lib/data"
+import { listarOrcamentos } from "@/lib/orcamentos-api"
+import { listarBalancoDB, type BalancoDB } from "@/lib/cadastros-api"
+
+type OrcamentoResumo = {
+  id: string
+  valorTotal: number
+  repasses: number
+  status: string
+}
 
 export function DashboardView({
   onNavigate,
 }: {
   onNavigate?: (tab: string) => void
 }) {
-  const totalOrcamentos = ORCAMENTOS.length
-  const emExecucao = ORCAMENTOS.filter((o) => o.status === "execucao").length
-  const concluidos = ORCAMENTOS.filter(
+  const [orcamentos, setOrcamentos] = React.useState<OrcamentoResumo[]>([])
+  const [balanco, setBalanco] = React.useState<BalancoDB[]>([])
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const [dadosOrc, dadosBal] = await Promise.all([
+          listarOrcamentos(),
+          listarBalancoDB(),
+        ])
+        setOrcamentos(
+          dadosOrc.map((o) => ({
+            id: o.id,
+            valorTotal: o.valorTotal,
+            repasses: o.repasses,
+            status: o.status,
+          }))
+        )
+        setBalanco(dadosBal)
+      } catch {
+        // silent — dashboard shows zeros on error
+      }
+    })()
+  }, [])
+
+  const totalOrcamentos = orcamentos.length
+  const emExecucao = orcamentos.filter((o) => o.status === "execucao").length
+  const concluidos = orcamentos.filter(
     (o) => o.status === "concluido" || o.status === "pago"
   ).length
-  const emRascunho = ORCAMENTOS.filter((o) => o.status === "rascunho").length
+  const emRascunho = orcamentos.filter((o) => o.status === "rascunho").length
 
-  const faturamentoTotal = ORCAMENTOS.reduce((acc, o) => acc + o.valorTotal, 0)
-  const repassesTotais = ORCAMENTOS.reduce((acc, o) => acc + o.repasses, 0)
+  const faturamentoTotal = orcamentos.reduce((acc, o) => acc + o.valorTotal, 0)
+  const repassesTotais = orcamentos.reduce((acc, o) => acc + o.repasses, 0)
   const lucroLiquidoTotal = faturamentoTotal - repassesTotais
 
   return (
@@ -58,7 +85,7 @@ export function DashboardView({
               {formatBRL(faturamentoTotal)}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {ORCAMENTOS.length} propostas geradas
+              {totalOrcamentos} propostas geradas
             </p>
           </CardContent>
         </Card>
@@ -126,7 +153,7 @@ export function DashboardView({
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div
                   className="h-2 rounded-full bg-amber-500"
-                  style={{ width: `${(emExecucao / totalOrcamentos) * 100}%` }}
+                  style={{ width: `${(emExecucao / (totalOrcamentos || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -141,7 +168,7 @@ export function DashboardView({
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div
                   className="h-2 rounded-full bg-emerald-500"
-                  style={{ width: `${(concluidos / totalOrcamentos) * 100}%` }}
+                  style={{ width: `${(concluidos / (totalOrcamentos || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -156,7 +183,7 @@ export function DashboardView({
               <div className="h-2 w-full rounded-full bg-secondary">
                 <div
                   className="h-2 rounded-full bg-zinc-400"
-                  style={{ width: `${(emRascunho / totalOrcamentos) * 100}%` }}
+                  style={{ width: `${(emRascunho / (totalOrcamentos || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -175,9 +202,14 @@ export function DashboardView({
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {BALANCO.slice(0, 3).map((item) => (
+              {balanco.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum lançamento mensal cadastrado ainda.
+                </p>
+              )}
+              {balanco.slice(0, 3).map((item) => (
                 <div
-                  key={item.mes}
+                  key={item.id || item.mes}
                   className="flex items-center justify-between border-b pb-2.5 last:border-0 last:pb-0"
                 >
                   <div>

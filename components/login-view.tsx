@@ -2,13 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import {
-  BookMarkedIcon,
-  EyeIcon,
-  EyeOffIcon,
-  LockIcon,
-  MailIcon,
-} from "lucide-react"
+import { BookMarked as BookMarkedIcon, Eye as EyeIcon, EyeOff as EyeOffIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -34,27 +28,25 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [processando, setProcessando] = React.useState(false)
 
   async function handleLogin() {
-    // Fase de testes: o acesso é liberado ao clicar em "Acessar",
-    // mesmo sem e-mail/senha cadastrados. Se credenciais forem
-    // informadas, tentamos uma autenticação real primeiro.
-    if (email.trim() && senha.trim()) {
-      try {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: senha,
-        })
-        if (!error) {
-          toast.success("Acesso liberado")
-          onAuthenticated()
-          return
-        }
-      } catch {
-        // Ignorado em fase de testes — segue para o acesso liberado.
-      }
+    if (!email.trim() || !senha.trim()) {
+      toast.error("Informe e-mail e senha para acessar")
+      return
     }
 
-    toast.success("Acesso liberado (modo de testes)")
-    onAuthenticated()
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: senha,
+      })
+      if (error) {
+        toast.error("E-mail ou senha incorretos. Verifique seus dados ou crie uma conta.")
+        return
+      }
+      toast.success("Acesso liberado")
+      onAuthenticated()
+    } catch {
+      toast.error("Erro inesperado ao acessar. Tente novamente.")
+    }
   }
 
   async function handleCadastro() {

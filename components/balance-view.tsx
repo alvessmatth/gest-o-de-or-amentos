@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { PencilIcon, PlusIcon, SaveIcon, SearchIcon } from "lucide-react"
+import { Pencil as PencilIcon, Plus as PlusIcon, Save as SaveIcon, Search as SearchIcon, Trash2 as Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -37,7 +37,13 @@ import {
 } from "@/components/ui/table"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { BALANCO, formatBRL, type MesBalanco } from "@/lib/data"
+import { formatBRL } from "@/lib/data"
+import {
+  listarBalancoDB,
+  salvarBalancoDB,
+  excluirBalancoDB,
+  type BalancoDB,
+} from "@/lib/cadastros-api"
 
 function formularioInicial() {
   return {
@@ -50,10 +56,26 @@ function formularioInicial() {
 }
 
 export function BalanceView() {
-  const [balanco, setBalanco] = React.useState<MesBalanco[]>(BALANCO)
+  const [balanco, setBalanco] = React.useState<BalancoDB[]>([])
   const [busca, setBusca] = React.useState("")
   const [drawerAberto, setDrawerAberto] = React.useState(false)
+  const [editando, setEditando] = React.useState<BalancoDB | null>(null)
+  const [salvando, setSalvando] = React.useState(false)
   const [form, setForm] = React.useState(formularioInicial)
+
+  const carregar = React.useCallback(async () => {
+    try {
+      const dados = await listarBalancoDB()
+      setBalanco(dados)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao carregar balanço do banco"
+      toast.error(msg)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void carregar()
+  }, [carregar])
 
   const mesAtual = balanco[0]
   const lucroAtual = mesAtual ? mesAtual.faturamento - mesAtual.repasses : 0
@@ -71,22 +93,64 @@ export function BalanceView() {
     return termo === "" || mes.mes.toLowerCase().includes(termo)
   })
 
-  function salvar() {
+  function handleAbrirCriar() {
+    setEditando(null)
+    setForm(formularioInicial())
+    setDrawerAberto(true)
+  }
+
+  function handleAbrirEditar(m: BalancoDB) {
+    setEditando(m)
+    setForm({
+      mes: m.mes,
+      orcamentos: String(m.orcamentos),
+      faturamento: String(m.faturamento),
+      repasses: String(m.repasses),
+      recebido: String(m.recebido),
+    })
+    setDrawerAberto(true)
+  }
+
+  async function handleSalvar() {
     if (form.mes.trim() === "") {
       toast.error("Informe o mês de referência")
       return
     }
-    const novo: MesBalanco = {
-      mes: form.mes.trim(),
-      orcamentos: Number(form.orcamentos) || 0,
-      faturamento: Number(form.faturamento) || 0,
-      repasses: Number(form.repasses) || 0,
-      recebido: Number(form.recebido) || 0,
+
+    setSalvando(true)
+    try {
+      await salvarBalancoDB({
+        id: editando?.id,
+        mes: form.mes.trim(),
+        orcamentos: Number(form.orcamentos) || 0,
+        faturamento: Number(form.faturamento) || 0,
+        repasses: Number(form.repasses) || 0,
+        recebido: Number(form.recebido) || 0,
+      })
+      toast.success(
+        editando ? "Lançamento atualizado com sucesso!" : `Lançamento de ${form.mes.trim()} adicionado`
+      )
+      setForm(formularioInicial())
+      setDrawerAberto(false)
+      await carregar()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao salvar lançamento"
+      toast.error(msg)
+    } finally {
+      setSalvando(false)
     }
-    setBalanco((atual) => [novo, ...atual])
-    toast.success(`Lançamento de ${novo.mes} adicionado`)
-    setForm(formularioInicial())
-    setDrawerAberto(false)
+  }
+
+  async function handleExcluir(id: string, mes: string) {
+    if (!confirm(`Tem certeza que deseja excluir o lançamento de "${mes}"?`)) return
+    try {
+      await excluirBalancoDB(id)
+      toast.success("Lançamento removido com sucesso!")
+      await carregar()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao excluir lançamento"
+      toast.error(msg)
+    }
   }
 
   return (
@@ -125,7 +189,7 @@ export function BalanceView() {
             aria-label="Busca rápida no balanço mensal"
           />
         </InputGroup>
-        <Button onClick={() => setDrawerAberto(true)}>
+        <Button onClick={handleAbrirCriar}>
           <PlusIcon data-icon="inline-start" />
           Adicionar lançamento
         </Button>
@@ -146,7 +210,7 @@ export function BalanceView() {
           </TableHeader>
           <TableBody>
             {linhas.map((mes) => (
-              <TableRow key={mes.mes} className="h-14">
+              <TableRow key={mes.id} className="h-14">
                 <TableCell className="font-medium">{mes.mes}</TableCell>
                 <TableCell className="text-right tabular-nums">
                   {mes.orcamentos}
@@ -164,21 +228,39 @@ export function BalanceView() {
                   {formatBRL(mes.recebido)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Editar ${mes.mes}`}
-                          onClick={() => toast.info(`Editar ${mes.mes}`)}
-                        />
-                      }
-                    >
-                      <PencilIcon />
-                    </TooltipTrigger>
-                    <TooltipContent>Editar</TooltipContent>
-                  </Tooltip>
+                  <div className="flex items-center justify-end gap-1">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Editar ${mes.mes}`}
+                            onClick={() => handleAbrirEditar(mes)}
+                          />
+                        }
+                      >
+                        <PencilIcon />
+                      </TooltipTrigger>
+                      <TooltipContent>Editar</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-destructive hover:bg-destructive/10"
+                            aria-label={`Excluir ${mes.mes}`}
+                            onClick={() => mes.id && handleExcluir(mes.id, mes.mes)}
+                          />
+                        }
+                      >
+                        <Trash2Icon />
+                      </TooltipTrigger>
+                      <TooltipContent>Excluir</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -203,7 +285,9 @@ export function BalanceView() {
           className="w-full gap-0 p-0 sm:max-w-md data-[side=right]:sm:max-w-md"
         >
           <SheetHeader className="border-b bg-card px-5 py-4">
-            <SheetTitle className="text-base">Novo lançamento mensal</SheetTitle>
+            <SheetTitle className="text-base">
+              {editando ? "Editar lançamento mensal" : "Novo lançamento mensal"}
+            </SheetTitle>
             <SheetDescription>
               Registre o resultado de um período no balanço.
             </SheetDescription>
@@ -282,9 +366,9 @@ export function BalanceView() {
           </div>
 
           <SheetFooter className="border-t bg-card px-5 py-4">
-            <Button onClick={salvar}>
+            <Button onClick={handleSalvar} disabled={salvando}>
               <SaveIcon data-icon="inline-start" />
-              Salvar lançamento
+              {salvando ? "Salvando..." : "Salvar lançamento"}
             </Button>
           </SheetFooter>
         </SheetContent>

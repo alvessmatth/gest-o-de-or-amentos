@@ -130,7 +130,7 @@ export async function salvarOrcamento(input: SalvarOrcamentoInput) {
       codigo_proposta: codigo,
       cliente_id: input.clienteId,
       valor_total: input.valorTotal,
-      status: input.status ?? "Rascunho",
+      status: input.status ?? "rascunho",
       validade_dias: 30,
       titulo_artigo: input.exigencia ? input.tituloArtigo || null : null,
       docente_responsavel: input.exigencia ? input.docente || null : null,
@@ -170,6 +170,26 @@ export async function atualizarStatusOrcamento(id: string, status: StatusOrcamen
   const { error } = await supabase
     .from("orcamentos")
     .update({ status })
+    .eq("id", id)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+export async function excluirOrcamento(id: string) {
+  const { error: errorItens } = await supabase
+    .from("orcamento_itens")
+    .delete()
+    .eq("orcamento_id", id)
+
+  if (errorItens) {
+    throw new Error(errorItens.message)
+  }
+
+  const { error } = await supabase
+    .from("orcamentos")
+    .delete()
     .eq("id", id)
 
   if (error) {
