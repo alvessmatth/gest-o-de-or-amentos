@@ -27,66 +27,10 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [mostrarSenha, setMostrarSenha] = React.useState(false)
   const [processando, setProcessando] = React.useState(false)
 
-  async function handleLogin() {
-    if (!email.trim() || !senha.trim()) {
-      toast.error("Informe e-mail e senha para acessar")
-      return
-    }
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      })
-      if (error) {
-        toast.error("E-mail ou senha incorretos. Verifique seus dados ou crie uma conta.")
-        return
-      }
-      toast.success("Acesso liberado")
-      onAuthenticated()
-    } catch {
-      toast.error("Erro inesperado ao acessar. Tente novamente.")
-    }
-  }
-
-  async function handleCadastro() {
-    if (!email.trim() || !senha.trim()) {
-      toast.error("Informe e-mail e senha para criar sua conta")
-      return
-    }
-    if (senha.length < 6) {
-      toast.error("A senha deve ter ao menos 6 caracteres")
-      return
-    }
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: senha,
-      })
-      if (error) {
-        toast.error("Não foi possível criar a conta. Tente novamente.")
-        return
-      }
-      toast.success("Conta criada com sucesso")
-      onAuthenticated()
-    } catch {
-      toast.error("Erro inesperado ao criar a conta")
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setProcessando(true)
-    try {
-      if (modo === "login") {
-        await handleLogin()
-      } else {
-        await handleCadastro()
-      }
-    } finally {
-      setProcessando(false)
-    }
+    // Acesso direto ao dashboard, sem validação de credenciais/sessão.
+    onAuthenticated()
   }
 
   const ehLogin = modo === "login"
