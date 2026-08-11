@@ -293,7 +293,7 @@ export function ServicesView() {
                 <FieldLabel htmlFor="servico-unidade">Unidade de medida</FieldLabel>
                 <Select
                   value={form.unidade}
-                  onValueChange={(v) => setForm((f) => ({ ...f, unidade: v }))}
+                  onValueChange={(v) => setForm((f) => ({ ...f, unidade: v ?? "" }))}
                 >
                   <SelectTrigger id="servico-unidade">
                     <SelectValue>
