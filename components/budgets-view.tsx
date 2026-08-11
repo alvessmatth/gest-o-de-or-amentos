@@ -3,7 +3,17 @@
 import * as React from "react"
 import { gerarPDFOrcamento } from "@/lib/pdf"
 import { toast } from "sonner"
-import { CircleCheck as CheckCircle2Icon, FileText as FileTextIcon, Pencil as PencilIcon, Plus as PlusIcon, Search as SearchIcon, SlidersHorizontal as SlidersHorizontalIcon, Building2 as Building2Icon, User as UserIcon, Trash2 as Trash2Icon } from "lucide-react"
+import {
+  CircleCheck as CheckCircle2Icon,
+  FileText as FileTextIcon,
+  Pencil as PencilIcon,
+  Plus as PlusIcon,
+  Search as SearchIcon,
+  SlidersHorizontal as SlidersHorizontalIcon,
+  Building2 as Building2Icon,
+  User as UserIcon,
+  Trash2 as Trash2Icon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +22,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-  Trash2Icon,
 import {
   Select,
   SelectContent,
@@ -51,7 +60,6 @@ type OrcamentoExibicao = Orcamento & {
   clienteSigla: string
   ehUniversidade: boolean
   rawItens?: any[]
-  excluirOrcamento,
 }
 
 const BADGE_STATUS_STYLE: Record<StatusOrcamento, string> = {
@@ -121,25 +129,18 @@ export function BudgetsView() {
   }
 
   async function handleExcluir(orcamento: OrcamentoExibicao) {
-    if (!confirm(`Tem certeza que deseja excluir o orçamento "${orcamento.codigo}"? Esta ação não pode ser desfeita.`)) return
+    if (
+      !confirm(
+        `Tem certeza que deseja excluir o orçamento "${orcamento.codigo}"? Esta ação não pode ser desfeita.`
+      )
+    )
+      return
     setOrcamentos((atual) => atual.filter((o) => o.id !== orcamento.id))
     try {
       await excluirOrcamento(orcamento.id)
       toast.success(`Orçamento ${orcamento.codigo} excluído com sucesso!`)
     } catch {
       toast.error("Erro ao excluir orçamento no banco")
-  async function handleExcluir(orcamento: OrcamentoExibicao) {
-    if (!confirm(`Tem certeza que deseja excluir o orçamento "${orcamento.codigo}"? Esta ação não pode ser desfeita.`)) return
-    setOrcamentos((atual) => atual.filter((o) => o.id !== orcamento.id))
-    try {
-      await excluirOrcamento(orcamento.id)
-      toast.success(`Orçamento ${orcamento.codigo} excluído com sucesso!`)
-    } catch {
-      toast.error("Erro ao excluir orçamento no banco")
-      void carregarOrcamentos()
-    }
-  }
-
       void carregarOrcamentos()
     }
   }
@@ -290,7 +291,10 @@ export function BudgetsView() {
                       <SelectTrigger className="h-8 text-xs bg-background border">
                         <SelectValue>
                           {(value: string) => (
-                            <Badge variant="outline" className={BADGE_STATUS_STYLE[value as StatusOrcamento] || ""}>
+                            <Badge
+                              variant="outline"
+                              className={BADGE_STATUS_STYLE[value as StatusOrcamento] || ""}
+                            >
                               {STATUS_LABEL[value as StatusOrcamento] || value}
                             </Badge>
                           )}
@@ -321,7 +325,7 @@ export function BudgetsView() {
                             size="icon-sm"
                             aria-label={`Gerar PDF — ${orcamento.codigo}`}
                             onClick={() => {
-                              gerarPDFOrcamento({
+                              void gerarPDFOrcamento({
                                 codigo_proposta: orcamento.codigo,
                                 cliente_nome: `${orcamento.clienteSigla} - ${orcamento.clienteNome}`,
                                 servicos_resumo: orcamento.servicos.join(", "),
@@ -371,23 +375,6 @@ export function BudgetsView() {
                           }
                         >
                           <CheckCircle2Icon />
-
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive hover:bg-destructive/10"
-                            aria-label={`Excluir orçamento — ${orcamento.codigo}`}
-                            onClick={() => handleExcluir(orcamento)}
-                          />
-                        }
-                      >
-                        <Trash2Icon />
-                      </TooltipTrigger>
-                      <TooltipContent>Excluir orçamento</TooltipContent>
-                    </Tooltip>
                         </TooltipTrigger>
                         <TooltipContent>Concluir e encerrar</TooltipContent>
                       </Tooltip>
@@ -401,7 +388,7 @@ export function BudgetsView() {
                             size="icon-sm"
                             className="text-destructive hover:bg-destructive/10"
                             aria-label={`Excluir orçamento — ${orcamento.codigo}`}
-                            onClick={() => handleExcluir(orcamento)}
+                            onClick={() => void handleExcluir(orcamento)}
                           />
                         }
                       >

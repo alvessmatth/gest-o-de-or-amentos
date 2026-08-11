@@ -57,6 +57,33 @@ export function DashboardView({
   const repassesTotais = orcamentos.reduce((acc, o) => acc + o.repasses, 0)
   const lucroLiquidoTotal = faturamentoTotal - repassesTotais
 
+  const STATUS_CORES: Record<string, { label: string; cor: string }> = {
+    rascunho: { label: "Rascunho", cor: "#a1a1aa" },
+    enviado: { label: "Enviado", cor: "#3b82f6" },
+    execucao: { label: "Em execução", cor: "#f59e0b" },
+    concluido: { label: "Concluído", cor: "#10b981" },
+    pago: { label: "Pago", cor: "#8b5cf6" },
+  }
+
+  const segmentos = Object.entries(STATUS_CORES)
+    .map(([chave, info]) => ({
+      ...info,
+      quantidade: orcamentos.filter((o) => o.status === chave).length,
+    }))
+    .filter((s) => s.quantidade > 0)
+
+  const totalSegmentos = segmentos.reduce((acc, s) => acc + s.quantidade, 0)
+
+  let acumulado = 0
+  const gradientStops = segmentos
+    .map((s) => {
+      const inicio = (acumulado / totalSegmentos) * 100
+      acumulado += s.quantidade
+      const fim = (acumulado / totalSegmentos) * 100
+      return `${s.cor} ${inicio}% ${fim}%`
+    })
+    .join(", ")
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -142,51 +169,46 @@ export function DashboardView({
             <CardTitle className="text-base">Distribuição de Status dos Orçamentos</CardTitle>
             <CardDescription>Resumo situacional de todas as propostas</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Em Execução</span>
-                <span className="font-medium">
-                  {emExecucao} / {totalOrcamentos}
-                </span>
-              </div>
-              <div className="h-2 w-full rounded-full bg-secondary">
-                <div
-                  className="h-2 rounded-full bg-amber-500"
-                  style={{ width: `${(emExecucao / (totalOrcamentos || 1)) * 100}%` }}
-                />
-              </div>
-            </div>
+          <CardContent>
+            {totalSegmentos === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Nenhum orçamento cadastrado ainda.
+              </p>
+            ) : (
+              <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-around">
+                <div className="relative flex size-40 shrink-0 items-center justify-center">
+                  <div
+                    className="size-40 rounded-full"
+                    style={{ background: `conic-gradient(${gradientStops})` }}
+                    role="img"
+                    aria-label="Gráfico de pizza da distribuição de status dos orçamentos"
+                  />
+                  <div className="absolute flex size-24 flex-col items-center justify-center rounded-full bg-card">
+                    <span className="text-2xl font-bold tabular-nums">{totalSegmentos}</span>
+                    <span className="text-[10px] text-muted-foreground">propostas</span>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Concluídos e Pagos</span>
-                <span className="font-medium">
-                  {concluidos} / {totalOrcamentos}
-                </span>
+                <ul className="flex flex-col gap-2">
+                  {segmentos.map((s) => (
+                    <li key={s.label} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="size-3 shrink-0 rounded-sm"
+                        style={{ backgroundColor: s.cor }}
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1 text-muted-foreground">{s.label}</span>
+                      <span className="font-medium tabular-nums">
+                        {s.quantidade}
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ({((s.quantidade / totalSegmentos) * 100).toFixed(0)}%)
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="h-2 w-full rounded-full bg-secondary">
-                <div
-                  className="h-2 rounded-full bg-emerald-500"
-                  style={{ width: `${(concluidos / (totalOrcamentos || 1)) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Rascunhos / Pendentes</span>
-                <span className="font-medium">
-                  {emRascunho} / {totalOrcamentos}
-                </span>
-              </div>
-              <div className="h-2 w-full rounded-full bg-secondary">
-                <div
-                  className="h-2 rounded-full bg-zinc-400"
-                  style={{ width: `${(emRascunho / (totalOrcamentos || 1)) * 100}%` }}
-                />
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

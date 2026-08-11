@@ -89,6 +89,7 @@ export function BudgetDrawer({
   const [totalAjustado, setTotalAjustado] = React.useState<number | null>(null)
   const [editandoTotal, setEditandoTotal] = React.useState(false)
   const [salvando, setSalvando] = React.useState(false)
+  const [incluirLogo, setIncluirLogo] = React.useState(true)
 
   React.useEffect(() => {
     if (!open) return
@@ -241,9 +242,9 @@ export function BudgetDrawer({
     }
   }
 
-  function handleGerarPDF() {
+  async function handleGerarPDF() {
     const clienteObj = clientes.find((c) => c.id === clienteId)
-    gerarPDFOrcamento({
+    await gerarPDFOrcamento({
       codigo_proposta: orcamentoParaEditar?.codigo || "ORC-NOVO",
       cliente_nome: clienteObj ? clienteObj.nome : "Cliente",
       servicos_resumo: itens
@@ -255,6 +256,7 @@ export function BudgetDrawer({
       titulo_artigo: exigencia ? tituloArtigo : undefined,
       docente_responsavel: exigencia ? docente : undefined,
       numero_processo: exigencia ? numeroProcesso : undefined,
+      incluir_logo: incluirLogo,
     })
     toast.success("PDF gerado com sucesso!")
   }
@@ -587,15 +589,27 @@ export function BudgetDrawer({
           </FieldGroup>
         </div>
 
-        <SheetFooter className="grid gap-2 border-t bg-card px-5 py-4 sm:grid-cols-2">
-          <Button variant="outline" disabled={salvando} onClick={() => void handleSalvar()}>
-            <SaveIcon data-icon="inline-start" />
-            {salvando ? "Salvando…" : "Salvar orçamento"}
-          </Button>
-          <Button variant="secondary" onClick={handleGerarPDF}>
-            <FileTextIcon data-icon="inline-start" />
-            Gerar PDF
-          </Button>
+        <SheetFooter className="flex flex-col gap-3 border-t bg-card px-5 py-4">
+          <Field orientation="horizontal" className="justify-start gap-2">
+            <Checkbox
+              id="incluir-logo"
+              checked={incluirLogo}
+              onCheckedChange={(v) => setIncluirLogo(Boolean(v))}
+            />
+            <FieldLabel htmlFor="incluir-logo" className="font-normal">
+              Incluir logomarca no PDF
+            </FieldLabel>
+          </Field>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" disabled={salvando} onClick={() => void handleSalvar()}>
+              <SaveIcon data-icon="inline-start" />
+              {salvando ? "Salvando…" : "Salvar orçamento"}
+            </Button>
+            <Button variant="secondary" onClick={() => void handleGerarPDF()}>
+              <FileTextIcon data-icon="inline-start" />
+              Gerar PDF
+            </Button>
+          </div>
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -337,7 +337,7 @@ export function ClientsView() {
                   <FieldLabel htmlFor="cliente-tipo">Tipo de cliente</FieldLabel>
                   <Select
                     value={form.tipo}
-                    onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))}
+                    onValueChange={(v) => setForm((f) => ({ ...f, tipo: (v as string) ?? "" }))}
                   >
                     <SelectTrigger id="cliente-tipo">
                       <SelectValue>

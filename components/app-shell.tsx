@@ -72,18 +72,15 @@ export function AppShell() {
           `}
         >
           {/* Logo e Título */}
-          <div className="flex items-center gap-3 border-b px-5 py-4">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
-              <BookMarkedIcon className="size-5" />
+          <div className="flex flex-col gap-2 border-b px-5 py-4">
+            <img
+              src="/scriba-coter-logo.png"
+              alt="Scriba Coter"
+              className="h-9 w-auto self-start"
+            />
+            <span className="text-xs text-muted-foreground">
+              Gestão de Orçamentos · Edição Científica
             </span>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold leading-tight">
-                Gestão de Orçamentos
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Edição Científica
-              </span>
-            </div>
           </div>
 
           {/* Cartão de Perfil */}
