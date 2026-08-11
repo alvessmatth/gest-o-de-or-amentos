@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { BookMarked as BookMarkedIcon, Eye as EyeIcon, EyeOff as EyeOffIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-react"
+import { Eye as EyeIcon, EyeOff as EyeOffIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -27,63 +27,44 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
   const [mostrarSenha, setMostrarSenha] = React.useState(false)
   const [processando, setProcessando] = React.useState(false)
 
-  async function handleLogin() {
-    if (!email.trim() || !senha.trim()) {
-      toast.error("Informe e-mail e senha para acessar")
-      return
-    }
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      })
-      if (error) {
-        toast.error("E-mail ou senha incorretos. Verifique seus dados ou crie uma conta.")
-        return
-      }
-      toast.success("Acesso liberado")
-      onAuthenticated()
-    } catch {
-      toast.error("Erro inesperado ao acessar. Tente novamente.")
-    }
-  }
-
-  async function handleCadastro() {
-    if (!email.trim() || !senha.trim()) {
-      toast.error("Informe e-mail e senha para criar sua conta")
-      return
-    }
-    if (senha.length < 6) {
-      toast.error("A senha deve ter ao menos 6 caracteres")
-      return
-    }
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: senha,
-      })
-      if (error) {
-        toast.error("Não foi possível criar a conta. Tente novamente.")
-        return
-      }
-      toast.success("Conta criada com sucesso")
-      onAuthenticated()
-    } catch {
-      toast.error("Erro inesperado ao criar a conta")
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!email || !senha) {
+      toast.error("Informe e-mail e senha.")
+      return
+    }
     setProcessando(true)
     try {
       if (modo === "login") {
-        await handleLogin()
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: senha,
+        })
+        if (error) {
+          toast.error("E-mail ou senha inválidos.")
+          return
+        }
+        onAuthenticated()
       } else {
-        await handleCadastro()
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: senha,
+          options: {
+            emailRedirectTo:
+              process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
+              `${window.location.origin}/auth/callback`,
+          },
+        })
+        if (error) {
+          toast.error(error.message)
+          return
+        }
+        toast.success("Conta criada! Você já pode acessar.")
+        setModo("login")
       }
+    } catch (err) {
+      console.error("[v0] Erro de autenticação:", err)
+      toast.error("Não foi possível concluir. Tente novamente.")
     } finally {
       setProcessando(false)
     }
@@ -95,9 +76,11 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <BookMarkedIcon className="size-5" aria-hidden="true" />
-          </span>
+          <img
+            src="/logo-scriba-coter.png"
+            alt="Scriba Coter"
+            className="h-14 w-auto"
+          />
           <div className="flex flex-col gap-1">
             <h1 className="text-lg font-semibold leading-tight text-balance">
               Gestão de Orçamentos
@@ -125,7 +108,7 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
                   id="email"
                   type="email"
                   autoComplete="email"
-                  placeholder="voce@empresa.com"
+                  placeholder="admin@teste.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -142,7 +125,7 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
                   id="senha"
                   type={mostrarSenha ? "text" : "password"}
                   autoComplete={ehLogin ? "current-password" : "new-password"}
-                  placeholder="••••••••"
+                  placeholder="123456"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                 />
@@ -158,6 +141,15 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
               </InputGroup>
             </Field>
           </FieldGroup>
+
+          {ehLogin ? (
+            <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
+              Credenciais de teste:{" "}
+              <span className="font-medium text-foreground">admin@teste.com</span>
+              {" / "}
+              <span className="font-medium text-foreground">123456</span>
+            </div>
+          ) : null}
 
           <Button type="submit" size="lg" disabled={processando} className="w-full">
             {processando

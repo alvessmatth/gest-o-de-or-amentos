@@ -13,11 +13,18 @@ export function AuthGate() {
   React.useEffect(() => {
     let ativo = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!ativo) return
-      setAutenticado(Boolean(data.session))
-      setCarregando(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!ativo) return
+        setAutenticado(Boolean(data.session))
+      })
+      .catch((err) => {
+        console.error("[v0] Falha ao obter sessão:", err)
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false)
+      })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setAutenticado(Boolean(session))

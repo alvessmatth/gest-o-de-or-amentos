@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  BookMarkedIcon,
   FileTextIcon,
   HandshakeIcon,
   LayoutDashboardIcon,
@@ -31,8 +30,8 @@ import { ProfileModal } from "@/components/profile-modal"
 
 const MENU_ITENS = [
   { value: "dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { value: "orcamentos", label: "Orçamentos", icon: FileTextIcon },
   { value: "clientes", label: "Clientes & Instituições", icon: UsersIcon },
+  { value: "orcamentos", label: "Orçamentos", icon: FileTextIcon },
   { value: "servicos", label: "Serviços & Preços", icon: TagIcon },
   { value: "parceiros", label: "Parceiros Terceirizados", icon: HandshakeIcon },
   { value: "balanco", label: "Balanço & Repasses", icon: TrendingUpIcon },
@@ -48,12 +47,11 @@ export function AppShell() {
       <div className="flex min-h-screen bg-background text-foreground">
         {/* Cabeçalho Mobile */}
         <div className="sticky top-0 z-50 flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <BookMarkedIcon className="size-4" />
-            </span>
-            <span className="text-sm font-semibold">Gestão de Orçamentos</span>
-          </div>
+          <img
+            src="/logo-scriba-coter.png"
+            alt="Scriba Coter"
+            className="h-7 w-auto"
+          />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -72,18 +70,12 @@ export function AppShell() {
           `}
         >
           {/* Logo e Título */}
-          <div className="flex items-center gap-3 border-b px-5 py-4">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
-              <BookMarkedIcon className="size-5" />
-            </span>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold leading-tight">
-                Gestão de Orçamentos
-              </span>
-              <span className="text-xs text-muted-foreground">
-                Edição Científica
-              </span>
-            </div>
+          <div className="flex items-center border-b px-5 py-4">
+            <img
+              src="/logo-scriba-coter.png"
+              alt="Scriba Coter"
+              className="h-9 w-auto"
+            />
           </div>
 
           {/* Cartão de Perfil */}

@@ -12,7 +12,6 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-  Trash2Icon,
 import {
   Select,
   SelectContent,
@@ -51,7 +50,6 @@ type OrcamentoExibicao = Orcamento & {
   clienteSigla: string
   ehUniversidade: boolean
   rawItens?: any[]
-  excluirOrcamento,
 }
 
 const BADGE_STATUS_STYLE: Record<StatusOrcamento, string> = {
