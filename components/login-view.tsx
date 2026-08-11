@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { BookMarked as BookMarkedIcon, Eye as EyeIcon, EyeOff as EyeOffIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-react"
+import { Eye as EyeIcon, EyeOff as EyeOffIcon, Lock as LockIcon, Mail as MailIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -95,9 +95,11 @@ export function LoginView({ onAuthenticated }: { onAuthenticated: () => void }) 
     <main className="flex min-h-svh items-center justify-center bg-background px-4 py-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <BookMarkedIcon className="size-5" aria-hidden="true" />
-          </span>
+          <img
+            src="/logo-scriba-coter.png"
+            alt="Scriba Coter"
+            className="h-14 w-auto"
+          />
           <div className="flex flex-col gap-1">
             <h1 className="text-lg font-semibold leading-tight text-balance">
               Gestão de Orçamentos

@@ -1,16 +1,41 @@
 import { jsPDF } from "jspdf"
 
-export function gerarPDFOrcamento(orcamento: any) {
+async function carregarLogo(): Promise<string | null> {
+    try {
+        const res = await fetch("/logo-scriba-coter.png")
+        const blob = await res.blob()
+        return await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = () => resolve(null)
+            reader.readAsDataURL(blob)
+        })
+    } catch {
+        return null
+    }
+}
+
+export async function gerarPDFOrcamento(orcamento: any, incluirLogo = true) {
     const doc = new jsPDF()
+
+    if (incluirLogo) {
+        const logo = await carregarLogo()
+        if (logo) {
+            // Proporção ~2.75 da logomarca
+            doc.addImage(logo, "PNG", 14, 12, 52, 19)
+        }
+    }
 
     // Cabeçalho - Título
     doc.setFontSize(18)
     doc.setTextColor(30, 58, 138) // Azul escuro
-    doc.text("Gestão de Orçamentos", 14, 20)
+    if (!incluirLogo) {
+        doc.text("Gestão de Orçamentos", 14, 20)
 
-    doc.setFontSize(10)
-    doc.setTextColor(107, 114, 128)
-    doc.text("Edição Científica & Tradução Acadêmica", 14, 26)
+        doc.setFontSize(10)
+        doc.setTextColor(107, 114, 128)
+        doc.text("Edição Científica & Tradução Acadêmica", 14, 26)
+    }
 
     // Cabeçalho - Número da Proposta e Data
     doc.setFontSize(12)
